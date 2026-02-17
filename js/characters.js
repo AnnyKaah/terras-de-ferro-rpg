@@ -108,7 +108,6 @@ class GameState {
         } else {
             this.player2 = { ...char, playerId: 2 };
         }
-        this.save();
     }
 
     bothPlayersSelected() {
@@ -127,7 +126,6 @@ class GameState {
         if (player.status.health === 0) {
             this.log(`⚠️ ${player.name} está em perigo de morte!`);
         }
-        this.save();
     }
 
     updateSpirit(playerNum, amount) {
@@ -138,21 +136,18 @@ class GameState {
         if (player.status.spirit === 0) {
             this.log(`😰 ${player.name} entrou em colapso emocional!`);
         }
-        this.save();
     }
 
     updateSupplies(playerNum, amount) {
         const player = this.getPlayer(playerNum);
         player.status.supplies = Math.max(0, Math.min(player.status.maxSupplies, player.status.supplies + amount));
         this.updateCharacterDisplay();
-        this.save();
     }
 
     updateBond(amount) {
         this.bond = Math.max(0, Math.min(this.maxBond, this.bond + amount));
         this.updateBondDisplay();
         if (amount > 0) this.log(`❤️ Laço fortalecido! (+${amount})`);
-        this.save();
     }
 
     updateBondDisplay() {
@@ -184,24 +179,38 @@ class GameState {
         if (this.progress >= this.maxProgress) {
             this.log(`🎉 Juramento completo! Chegou ao confronto final!`);
         }
-        this.save();
     }
 
-    addItem(item) {
-        if (!this.inventory.includes(item)) {
-            this.inventory.push(item);
-            this.log(`🎒 Item obtido: ${item}`);
-        }
-        this.save();
+    addItem(itemName, owner = 1) {
+        // Cria um objeto de item com ID único e dono
+        const newItem = {
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            name: itemName,
+            owner: owner // 1 ou 2
+        };
+        this.inventory.push(newItem);
+        
+        const ownerName = owner === 1 ? (this.player1 ? this.player1.name : 'Jogador 1') : (this.player2 ? this.player2.name : 'Jogador 2');
+        this.log(`🎒 ${ownerName} obteve: ${itemName}`);
     }
 
-    removeItem(item) {
-        const index = this.inventory.indexOf(item);
+    removeItem(itemName) {
+        // Encontra o index do primeiro item com esse nome
+        const index = this.inventory.findIndex(i => i.name === itemName || i === itemName);
         if (index > -1) {
-            this.inventory.splice(index, 1);
-            this.log(`🗑️ Item perdido: ${item}`);
+            const removed = this.inventory.splice(index, 1)[0];
+            const name = removed.name || removed;
+            this.log(`🗑️ Item perdido: ${name}`);
         }
-        this.save();
+    }
+
+    transferItem(itemId, newOwner) {
+        const item = this.inventory.find(i => i.id === itemId);
+        if (item) {
+            item.owner = newOwner;
+            const newOwnerName = newOwner === 1 ? this.player1.name : this.player2.name;
+            this.log(`🤝 Item entregue para ${newOwnerName}: ${item.name}`);
+        }
     }
 
     unlockAchievement(id) {
@@ -211,7 +220,6 @@ class GameState {
         this.unlockedAchievements.push(id);
         this.log(`🏆 Conquista Desbloqueada: ${ACHIEVEMENTS_DATA[id].title}`);
         this.showAchievementNotification(ACHIEVEMENTS_DATA[id]);
-        this.save();
     }
 
     showAchievementNotification(achievement) {
@@ -246,7 +254,6 @@ class GameState {
             timestamp: new Date()
         });
         this.log(`✍️ Diário atualizado.`);
-        this.save();
     }
 
     log(message) {
@@ -293,7 +300,6 @@ class GameState {
     resetSpecialAbilities() {
         if (this.player1) this.player1.healingUsed = false;
         if (this.player2) this.player2.healingUsed = false;
-        this.save();
     }
 
     renderCharStatus(playerNum, elementId) {
@@ -380,32 +386,25 @@ class GameState {
     // --- Sistema de Salvamento ---
 
     save() {
-        try {
-            const data = {
-                player1: this.player1,
-                player2: this.player2,
-                currentScene: this.currentScene,
-                progress: this.progress,
-                inventory: this.inventory,
-                gameLog: this.gameLog,
-                currentMission: this.currentMission,
-                unlockedAchievements: this.unlockedAchievements,
-                journal: this.journal,
-                bond: this.bond,
-                tutorialSeen: this.tutorialSeen
-            };
-            localStorage.setItem('terrasDeFerroSave', JSON.stringify(data));
-
-            // NOVO: Adicione esta parte para o Multiplayer!
-            // Sempre que o jogo salvar localmente, ele tenta enviar para o outro jogador
-            if (typeof syncGameState === "function") {
-                syncGameState();
-            }
-
-        } catch (e) {
-            console.error("Erro ao salvar jogo:", e);
-        }
-    }
+        try {
+            const data = {
+                player1: this.player1,
+                player2: this.player2,
+                currentScene: this.currentScene,
+                progress: this.progress,
+                inventory: this.inventory,
+                gameLog: this.gameLog,
+                currentMission: this.currentMission,
+                unlockedAchievements: this.unlockedAchievements,
+                journal: this.journal,
+                bond: this.bond,
+                tutorialSeen: this.tutorialSeen
+            };
+            localStorage.setItem('terrasDeFerroSave', JSON.stringify(data));
+        } catch (e) {
+            console.error("Erro ao salvar jogo:", e);
+        }
+    }
 
     load() {
         try {
@@ -428,6 +427,15 @@ class GameState {
             // Restaurar objetos Date
             this.gameLog.forEach(log => log.timestamp = new Date(log.timestamp));
             this.journal.forEach(entry => entry.timestamp = new Date(entry.timestamp));
+
+            // Migração de dados antigos (se inventory for array de strings)
+            if (this.inventory.length > 0 && typeof this.inventory[0] === 'string') {
+                this.inventory = this.inventory.map(name => ({
+                    id: Date.now() + Math.random(),
+                    name: name,
+                    owner: 1 // Default para Player 1 em saves antigos
+                }));
+            }
 
             return true;
         } catch (e) {
@@ -465,7 +473,6 @@ class GameState {
         this.updateHealth(playerNum, 3);
         this.log("🌿 Daren usou conhecimentos antigos para curar 3 de Saúde!");
         this.triggerHealingAnimation(playerNum);
-        this.save();
     }
 
     triggerHealingAnimation(playerNum) {

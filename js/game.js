@@ -1,5 +1,24 @@
 // game.js - Lógica principal do jogo
 
+// Funções de Lobby
+function hostGame() {
+    document.getElementById('btn-host').style.display = 'none';
+    document.getElementById('host-info').style.display = 'block';
+    initMultiplayer();
+}
+
+function joinGameUI() {
+    const input = document.getElementById('join-id-input');
+    const id = input.value.trim();
+    if (id) {
+        document.getElementById('btn-join').textContent = "Conectando...";
+        document.getElementById('btn-join').disabled = true;
+        joinRoom(id);
+    } else {
+        alert("Por favor, insira o ID da sala.");
+    }
+}
+
 function startGame() {
     if (localStorage.getItem('terrasDeFerroSave')) {
         if (!confirm("Existe um jogo salvo. Iniciar uma nova aventura apagará o progresso anterior. Deseja continuar?")) {
@@ -35,20 +54,23 @@ function showScreen(screenId) {
 
 let playerSelections = { player1: null, player2: null };
 
-function selectCharacter(playerNum, charId) {
-    const playerKey = `player${playerNum}`;
-    
-    // Verifica se o outro jogador já escolheu este personagem
-    const otherPlayer = playerNum === 1 ? 'player2' : 'player1';
-    if (playerSelections[otherPlayer] === charId) {
-        alert('Este personagem já foi escolhido pelo outro jogador!');
+// Função chamada quando EU clico em selecionar
+function chooseCharacter(charId) {
+    if (myPlayerId === 0) {
+        alert("Erro: Conexão multiplayer não estabelecida.");
         return;
     }
+
+    // Atualiza localmente
+    handleRemoteSelection(myPlayerId, charId);
     
-    playerSelections[playerKey] = charId;
-    gameState.selectCharacter(playerNum, charId);
-    
-    updateSelectionStatus();
+    // Envia para o outro jogador
+    sendCharacterSelection(charId);
+}
+
+// Função chamada quando recebo a escolha (minha ou do outro)
+function handleRemoteSelection(playerNum, charId) {
+    selectCharacterLogic(playerNum, charId);
 }
 
 function updateSelectionStatus() {
@@ -56,20 +78,25 @@ function updateSelectionStatus() {
     const confirmBtn = document.getElementById('confirm-chars');
     
     // Atualiza visual dos cartões (bordas pulsantes)
-    document.querySelectorAll('.character-card').forEach(card => {
-        card.classList.remove('selected-p1', 'selected-p2');
+    const cards = document.querySelectorAll('.character-card');
+    cards.forEach(card => {
+        card.classList.remove('selected-by-me', 'taken');
         const charId = card.getAttribute('data-char');
         
-        if (playerSelections.player1 === charId) {
-            card.classList.add('selected-p1');
+        // Se EU escolhi este card
+        if ((myPlayerId === 1 && playerSelections.player1 === charId) || 
+            (myPlayerId === 2 && playerSelections.player2 === charId)) {
+            card.classList.add('selected-by-me');
         }
-        if (playerSelections.player2 === charId) {
-            card.classList.add('selected-p2');
+        // Se o OUTRO escolheu este card
+        else if ((myPlayerId === 1 && playerSelections.player2 === charId) || 
+                 (myPlayerId === 2 && playerSelections.player1 === charId)) {
+            card.classList.add('taken');
         }
     });
 
     let statusText = '';
-    
+    // Constrói o texto de status
     if (playerSelections.player1) {
         const char1 = CHARACTERS[playerSelections.player1];
         statusText += `👤 Jogador 1: ${char1.icon} ${char1.name}`;
@@ -85,10 +112,37 @@ function updateSelectionStatus() {
     
     // Mostra botão de confirmar se ambos escolheram
     if (playerSelections.player1 && playerSelections.player2) {
+        confirmBtn.textContent = "Começar Aventura!";
+        confirmBtn.disabled = false;
         confirmBtn.style.display = 'block';
+        confirmBtn.onclick = confirmCharacters; // Garante o evento
     } else {
-        confirmBtn.style.display = 'none';
+        confirmBtn.style.display = 'block';
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = "Aguardando ambos os jogadores...";
     }
+}
+
+// Lógica interna de seleção (reutilizada)
+function selectCharacterLogic(playerNum, charId) {
+    const playerKey = `player${playerNum}`;
+    
+    // Verifica conflito
+    const otherPlayer = playerNum === 1 ? 'player2' : 'player1';
+    if (playerSelections[otherPlayer] === charId) {
+        // Se for seleção remota conflitante, ignoramos ou tratamos
+        console.warn("Conflito de seleção de personagem!");
+        return;
+    }
+    
+    playerSelections[playerKey] = charId;
+    gameState.selectCharacter(playerNum, charId);
+    updateSelectionStatus();
+}
+
+// Chamado pelo multiplayer quando o outro clica numa decisão
+function handleRemoteDecisionClick(decisionIndex) {
+    handleDecision(decisionIndex, true); // true = isRemote
 }
 
 function confirmCharacters() {
@@ -155,9 +209,7 @@ function renderDecision(decision, index) {
             <h4>${decision.icon || '📍'} ${decision.title}</h4>
             <p>${decision.description}</p>
             ${decision.roll ? `<div class="roll-info">Rolagem: ${decision.roll}</div>` : ''}
-            <div class="outcomes">
-                ${renderOutcomes(decision.outcomes)}
-            </div>
+            ${decision.outcomes ? `<div class="outcomes">${renderOutcomes(decision.outcomes)}</div>` : ''}
         </div>
     `;
 }
@@ -177,13 +229,34 @@ function renderOutcomes(outcomes) {
     `;
 }
 
-function handleDecision(decisionIndex) {
+// Função para reativar os cartões (chamada se o modal de dados for fechado sem rolar)
+function enableDecisionCards() {
+    const decisionCards = document.querySelectorAll('.decision-card');
+    decisionCards.forEach(card => {
+        card.style.pointerEvents = 'all';
+        card.style.opacity = '1';
+    });
+}
+
+function handleDecision(decisionIndex, isRemote = false) {
     const scene = SCENES[gameState.currentScene];
     const decision = scene.decisions[decisionIndex];
     
     if (!decision) return;
     
-    gameState.log(`🎯 Escolheram: ${decision.title}`);
+    // Desativa todos os botões de decisão para evitar cliques duplos
+    const decisionCards = document.querySelectorAll('.decision-card');
+    decisionCards.forEach(card => {
+        card.style.pointerEvents = 'none';
+        card.style.opacity = '0.6';
+    });
+
+    // Se fui eu que cliquei, avisa o outro jogador imediatamente
+    if (!isRemote && typeof sendDecisionClick === 'function') {
+        sendDecisionClick(decisionIndex);
+    }
+    
+    // gameState.log(`🎯 Escolheram: ${decision.title}`); // Log duplicado se não cuidar, melhor deixar o resultado falar
     
     // Se a decisão requer rolagem, mostra o modal
     if (decision.requiresRoll) {
@@ -209,7 +282,7 @@ function applyDecisionResult(decision, result) {
         return;
     }
     
-    gameState.log(`📜 ${outcome}`);
+    gameState.log(`📜 RESULTADO: ${outcome}`);
     
     // Adicionar ao diário
     const scene = SCENES[gameState.currentScene];
@@ -227,6 +300,7 @@ function applyDecisionResult(decision, result) {
             Object.keys(effects.health).forEach(player => {
                 const playerNum = parseInt(player);
                 gameState.updateHealth(playerNum, effects.health[player]);
+                showFloatingDamage(playerNum, effects.health[player], 'health');
             });
         }
         
@@ -234,6 +308,7 @@ function applyDecisionResult(decision, result) {
             Object.keys(effects.spirit).forEach(player => {
                 const playerNum = parseInt(player);
                 gameState.updateSpirit(playerNum, effects.spirit[player]);
+                showFloatingDamage(playerNum, effects.spirit[player], 'spirit');
             });
         }
         
@@ -241,6 +316,7 @@ function applyDecisionResult(decision, result) {
             Object.keys(effects.supplies).forEach(player => {
                 const playerNum = parseInt(player);
                 gameState.updateSupplies(playerNum, effects.supplies[player]);
+                showFloatingDamage(playerNum, effects.supplies[player], 'supplies');
             });
         }
 
@@ -269,10 +345,47 @@ function applyDecisionResult(decision, result) {
         return;
     }
     
-    // Avança para próxima cena após 2 segundos
+    // Avança para próxima cena após 3 segundos (tempo para ler o log)
     setTimeout(() => {
         advanceToNextScene();
-    }, 2000);
+    }, 3000);
+}
+
+// Sistema de Feedback Visual (Floating Text)
+function showFloatingDamage(playerNum, amount, type) {
+    const elementId = playerNum === 1 ? 'char1-status' : 'char2-status';
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const rect = element.getBoundingClientRect();
+    // Posição central do card do personagem
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    let text = amount > 0 ? `+${amount}` : `${amount}`;
+    let color = amount > 0 ? 'var(--success)' : 'var(--danger)';
+    
+    if (type === 'spirit') color = '#9b59b6'; // Roxo para espírito
+    if (type === 'supplies') color = '#f1c40f'; // Amarelo para suprimentos
+
+    showFloatingText(text, x, y, color);
+    
+    // Envia para o outro jogador ver também
+    if (typeof sendFloatingText === 'function') {
+        sendFloatingText(text, x, y, color);
+    }
+}
+
+function showFloatingText(text, x, y, color) {
+    const floatEl = document.createElement('div');
+    floatEl.className = 'floating-text';
+    floatEl.textContent = text;
+    floatEl.style.left = `${x}px`;
+    floatEl.style.top = `${y}px`;
+    floatEl.style.color = color;
+    document.body.appendChild(floatEl);
+
+    setTimeout(() => floatEl.remove(), 1500);
 }
 
 function startMission2() {
@@ -306,7 +419,21 @@ function restartCurrentScene() {
 }
 
 function advanceToNextScene() {
-    loadScene(gameState.currentScene + 1);
+    const overlay = document.getElementById('transition-overlay');
+    
+    // 1. Escurece a tela
+    if (overlay) overlay.classList.add('active');
+    
+    // 2. Aguarda a animação (1 segundo)
+    setTimeout(() => {
+        loadScene(gameState.currentScene + 1);
+        window.scrollTo(0, 0); // Rola para o topo enquanto está escuro
+        
+        // 3. Clareia a tela novamente
+        setTimeout(() => {
+            if (overlay) overlay.classList.remove('active');
+        }, 500);
+    }, 1000);
 }
 
 function showEnding() {
@@ -334,7 +461,8 @@ function closeInventory() {
 
 function showInventory() {
     const modal = document.getElementById('inventory-modal');
-    const list = document.getElementById('inventory-items');
+    const list1 = document.getElementById('inv-list-1');
+    const list2 = document.getElementById('inv-list-2');
     const supplies1 = document.getElementById('inv-supplies-1');
     const supplies2 = document.getElementById('inv-supplies-2');
     
@@ -345,13 +473,39 @@ function showInventory() {
     if (gameState.player2) supplies2.textContent = `${gameState.player2.status.supplies}/${gameState.player2.status.maxSupplies}`;
     
     // Atualiza lista de itens
-    if (gameState.inventory.length === 0) {
-        list.innerHTML = '<li class="empty-inv">Nenhum item importante ainda.</li>';
-    } else {
-        list.innerHTML = gameState.inventory.map(item => `<li>✨ ${item}</li>`).join('');
-    }
+    const items1 = gameState.inventory.filter(i => i.owner === 1);
+    const items2 = gameState.inventory.filter(i => i.owner === 2);
+
+    const renderItem = (item, owner) => {
+        // Verifica se posso trocar (sou o dono OU sou o host jogando localmente)
+        // myPlayerId vem do multiplayer.js (1=Host, 2=Client, 0=Local/Offline)
+        const canTrade = myPlayerId === 0 || myPlayerId === owner;
+        const targetOwner = owner === 1 ? 2 : 1;
+        
+        return `
+            <li>
+                <span>✨ ${item.name}</span>
+                ${canTrade ? `<button class="btn-trade" onclick="tradeItemAction('${item.id}', ${targetOwner})">⇄ Dar</button>` : ''}
+            </li>
+        `;
+    };
+
+    list1.innerHTML = items1.length ? items1.map(i => renderItem(i, 1)).join('') : '<li class="empty-inv">Vazio</li>';
+    list2.innerHTML = items2.length ? items2.map(i => renderItem(i, 2)).join('') : '<li class="empty-inv">Vazio</li>';
     
     modal.classList.add('active');
+}
+
+function tradeItemAction(itemId, targetOwner) {
+    gameState.transferItem(itemId, targetOwner);
+    
+    // Sincroniza se estiver online
+    if (typeof syncGameState === 'function') {
+        syncGameState();
+    }
+    
+    // Atualiza a UI
+    showInventory();
 }
 
 function showRestModal() {
@@ -479,6 +633,16 @@ function closeJournal() {
     if (modal) modal.classList.remove('active');
 }
 
+function showConnectionLostModal() {
+    const modal = document.getElementById('connection-lost-modal');
+    if (modal) modal.classList.add('active');
+}
+
+function hideConnectionLostModal() {
+    const modal = document.getElementById('connection-lost-modal');
+    if (modal) modal.classList.remove('active');
+}
+
 function checkSaveGame() {
     if (localStorage.getItem('terrasDeFerroSave')) {
         const btnContinue = document.getElementById('btn-continue');
@@ -508,85 +672,57 @@ function useSpecialAbility() {
     gameState.performSpecialAbility();
 }
 
+function initTitleSparks() {
+    const container = document.querySelector('.start-container');
+    const title = document.querySelector('.main-title');
+    
+    if (!container || !title) return;
+
+    setInterval(() => {
+        // Verifica se a tela inicial está visível para não gastar processamento à toa
+        const startScreen = document.getElementById('start-screen');
+        if (!startScreen || !startScreen.classList.contains('active')) return;
+
+        const spark = document.createElement('div');
+        spark.classList.add('ember');
+        
+        // Posicionamento relativo ao título
+        const titleRect = title.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        
+        // Posição X aleatória dentro da largura do título
+        const xPos = (titleRect.left - containerRect.left) + (Math.random() * titleRect.width);
+        // Posição Y na base do título (levemente para cima)
+        const yPos = (titleRect.top - containerRect.top) + (titleRect.height * 0.6);
+        
+        spark.style.left = `${xPos}px`;
+        spark.style.top = `${yPos}px`;
+        
+        // Variação aleatória de movimento (drift)
+        const drift = (Math.random() - 0.5) * 60; // Desvio lateral
+        spark.style.setProperty('--drift', `${drift}px`);
+        
+        // Tamanho aleatório
+        const size = Math.random() * 3 + 1;
+        spark.style.width = `${size}px`;
+        spark.style.height = `${size}px`;
+        
+        // Duração aleatória
+        const duration = 0.5 + Math.random() * 1.5;
+        spark.style.animation = `riseSparks ${duration}s ease-out forwards`;
+        
+        container.appendChild(spark);
+        
+        // Remove do DOM após a animação terminar
+        setTimeout(() => {
+            spark.remove();
+        }, duration * 1000);
+    }, 80); // Cria uma faísca a cada 80ms
+}
+
 // Inicialização quando a página carregar
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🎮 Terras de Ferro carregado!');
     checkSaveGame();
+    initTitleSparks();
 });
-// --- SISTEMA DE TUTORIAL ---
-
-function closeTutorial() {
-    // Pega os elementos do HTML
-    const overlay = document.getElementById('tutorial-overlay');
-    const tooltip = document.getElementById('tutorial-tooltip');
-    
-    // Esconde os elementos removendo a classe e forçando o display none
-    if (overlay) {
-        overlay.classList.remove('active');
-        overlay.style.display = 'none';
-    }
-    if (tooltip) {
-        tooltip.classList.remove('active');
-        tooltip.style.display = 'none';
-    }
-    
-    // Atualiza o estado do jogo para lembrar que o tutorial já foi visto
-    if (typeof gameState !== 'undefined') {
-        gameState.tutorialSeen = true;
-        gameState.save(); // Salva no localStorage para não mostrar na próxima vez
-        console.log("Tutorial fechado e salvo.");
-    }
-}
-
-function handleChatKey(event) {
-    if (event.key === 'Enter') sendChatMessage();
-}
-
-function sendChatMessage() {
-    const input = document.getElementById('chat-input');
-    const msg = input.value.trim();
-    if (!msg) return;
-
-    // Detecta se é um comando de rolagem livre (ex: /rolar ferro)
-    if (msg.startsWith('/rolar')) {
-        const parts = msg.split(' ');
-        const attribute = parts[1] ? parts[1].toLowerCase() : 'ferro';
-        
-        // Pergunta de quem é a rolagem (1 = Lyra, 2 = Daren)
-        const playerNum = confirm("Foi a Lyra (OK) ou o Daren (Cancelar)?") ? 1 : 2;
-        
-        gameState.log(`🎲 <span class="log-command">${msg}</span>`);
-        showDiceRoller(playerNum, attribute, 0, (result) => {
-            gameState.log(`Rolagem livre finalizada: ${result}`);
-        });
-    } else {
-        // Mensagem normal
-        gameState.log(`💬 <span class="log-message">${msg}</span>`);
-    }
-    input.value = '';
-}
-// Adicione em js/game.js
-function exportSave() {
-    const dataStr = localStorage.getItem('terrasDeFerroSave');
-    if(!dataStr) return alert("Nenhum save encontrado!");
-    
-    const blob = new Blob([dataStr], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = "terras_de_ferro_save.json";
-    a.click();
-}
-
-function importSave(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        localStorage.setItem('terrasDeFerroSave', e.target.result);
-        alert("Save carregado com sucesso! Clique em Continuar Aventura.");
-        checkSaveGame();
-    };
-    reader.readAsText(file);
-}

@@ -1,173 +1,84 @@
-# ⚔️ Terras de Ferro - RPG para Dois Jogadores
+# ⚔️ Terras de Ferro
 
-Um RPG cooperativo online baseado no sistema Ironsworn, onde dois jogadores podem viver uma aventura épica juntos diretamente no navegador.
+> **Um RPG cooperativo Dark Fantasy para dois jogadores, rodando diretamente no navegador via P2P.**
 
-## 🎮 Como Jogar
+![Status](https://img.shields.io/badge/Status-Beta-blue)
+![Tech](https://img.shields.io/badge/Tech-VanillaJS%20%7C%20PeerJS-yellow)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-1. Abra o jogo no navegador
-2. Clique em "Começar Aventura"
-3. Cada jogador escolhe um personagem (Lyra ou Daren)
-4. Leiam as cenas juntos e decidam qual caminho seguir
-5. Rolem os dados quando necessário clicando no botão "Rolar Dados"
-6. Acompanhem a saúde, espírito e suprimentos na barra lateral
-
-## 📁 Estrutura do Projeto
-
-```
-rpg-terras-de-ferro/
-├── index.html          # Página principal
-├── css/
-│   └── style.css       # Estilos do jogo
-├── js/
-│   ├── game.js         # Lógica principal
-│   ├── characters.js   # Sistema de personagens
-│   ├── dice.js         # Sistema de rolagem de dados
-│   └── scenes.js       # Dados das cenas e decisões
-├── data/               # (reservado para futuros dados)
-└── assets/             # (reservado para futuras imagens)
-```
-
-## 🚀 Deploy no GitHub Pages
-
-### Passo 1: Criar Repositório no GitHub
-
-1. Acesse [github.com](https://github.com) e faça login
-2. Clique em "New repository"
-3. Nome do repositório: `terras-de-ferro-rpg`
-4. Deixe como **Public**
-5. NÃO marque "Add a README file"
-6. Clique em "Create repository"
-
-### Passo 2: Subir os Arquivos
-
-No terminal/VS Code, execute:
-
-```bash
-cd rpg-terras-de-ferro
-git init
-git add .
-git commit -m "Initial commit - RPG Terras de Ferro"
-git branch -M main
-git remote add origin https://github.com/AnnyKaah/terras-de-ferro-rpg
-git push -u origin main
-```
-
-
-### Passo 3: Ativar GitHub Pages
-
-1. No repositório do GitHub, vá em **Settings**
-2. No menu lateral, clique em **Pages**
-3. Em "Source", selecione **main** branch
-4. Clique em **Save**
-5. Aguarde alguns minutos
-
-Seu jogo estará disponível em:
-```
-https://github.com/AnnyKaah/terras-de-ferro-rpg
-```
-
-## 🚀 Deploy Alternativo - Vercel
-
-### Opção mais rápida (sem linha de comando):
-
-1. Acesse [vercel.com](https://vercel.com)
-2. Faça login com GitHub
-3. Clique em "Import Project"
-4. Selecione o repositório `terras-de-ferro-rpg`
-5. Clique em "Deploy"
-6. Pronto! O link estará disponível imediatamente
-
-### Opção com Vercel CLI:
-
-```bash
-# Instalar Vercel CLI
-npm install -g vercel
-
-# Fazer deploy
-cd rpg-terras-de-ferro
-vercel
-
-# Seguir as instruções no terminal
-# Escolher: "Setup and deploy?" → Yes
-# Project name: terras-de-ferro-rpg
-# Deploy: Yes
-```
-
-## 🎯 Funcionalidades
-
-- ✅ Sistema de rolagem de dados intuitivo
-- ✅ Dois personagens únicos com atributos diferentes
-- ✅ Rastreamento automático de saúde, espírito e suprimentos
-- ✅ Contador de progresso da missão
-- ✅ Interface responsiva (funciona em celular e desktop)
-- ✅ 4 cenas da primeira missão (demo)
-- ✅ Sistema de log de ações
-- ✅ Múltiplas decisões por cena
-- ✅ Resultados baseados em rolagens de dados
-
-## 🔧 Adicionar Mais Conteúdo
-
-Para adicionar novas cenas, edite o arquivo `js/scenes.js`:
-
-```javascript
-{
-    number: "Cena 5",
-    title: "Título da Nova Cena",
-    description: [
-        "Parágrafo 1 da descrição...",
-        "Parágrafo 2 da descrição..."
-    ],
-    decisions: [
-        {
-            icon: "🎯",
-            title: "Opção A",
-            description: "Descrição da opção...",
-            roll: "Personagem → Atributo (1d6 + X)",
-            requiresRoll: true,
-            rollInfo: { playerNum: 1, attribute: 'ferro' },
-            outcomes: {
-                success: "Texto do sucesso...",
-                partial: "Texto do parcial...",
-                fail: "Texto da falha..."
-            },
-            effects: {
-                success: { progress: 2 },
-                partial: { progress: 1, health: { 1: -1 } },
-                fail: { health: { 1: -2, 2: -1 } }
-            }
-        }
-    ]
-}
-```
-
-## 📱 Compatibilidade
-
-- ✅ Chrome / Edge
-- ✅ Firefox
-- ✅ Safari
-- ✅ Mobile (Android / iOS)
-
-## 🎨 Personalização
-
-Para mudar as cores do jogo, edite as variáveis CSS em `css/style.css`:
-
-```css
-:root {
-    --accent: #e94560;        /* Cor principal */
-    --accent-light: #ff6b81;  /* Cor principal clara */
-    --bg-dark: #1a1a2e;       /* Fundo escuro */
-    /* ... */
-}
-```
-
-## 📄 Licença
-
-Projeto criado para uso pessoal. Baseado no sistema Ironsworn (Creative Commons).
-
-## 🤝 Contribuindo
-
-Sinta-se livre para fazer fork e adicionar suas próprias cenas e personagens!
+**Terras de Ferro** é uma experiência narrativa imersiva baseada no sistema *Ironsworn*. Diferente de RPGs de mesa tradicionais que exigem configuração complexa, este projeto permite que dois jogadores se conectem instantaneamente e vivam uma aventura épica com sincronização em tempo real.
 
 ---
 
-**Boa aventura nas Terras de Ferro! ⚔️**
+## ✨ Funcionalidades Principais
+
+### 🔗 Multiplayer P2P em Tempo Real
+- **Conexão Direta:** Utiliza WebRTC (via PeerJS) para conectar dois navegadores sem necessidade de servidor backend complexo.
+- **Sincronização Total:** Rolagens de dados, escolhas narrativas, inventário e status são transmitidos instantaneamente entre o Host e o Cliente.
+- **Reconexão Inteligente:** Sistema robusto que lida com quedas de conexão e permite retomar a sessão.
+
+### 🎨 UI/UX Imersiva (Premium)
+- **Hero Page Cinematográfica:** Efeito Parallax com múltiplas camadas (estrelas, montanhas, névoa) e animações CSS avançadas.
+- **Design Glassmorphism:** Interface moderna com painéis translúcidos e efeitos de desfoque (backdrop-filter).
+- **Feedback Visual ("Juice"):**
+  - Partículas de faísca no título.
+  - Números de dano/cura flutuantes (Floating Text).
+  - Tremores de tela e animações de pulso.
+  - Efeitos visuais específicos para habilidades (ex: partículas de cura).
+
+### 🎲 Mecânicas de Jogo
+- **Sistema de Dados Ironsworn:** Rolagem automática de 1d6 (Ação) vs 2d10 (Desafio) com cálculo automático de Sucesso Total, Parcial ou Falha.
+- **Inventário Colaborativo:** Sistema de troca de itens em tempo real entre os jogadores ("Dar item").
+- **Narrativa Ramificada:** Árvore de decisões complexa onde cada escolha afeta os atributos e o final da história.
+- **Persistência de Dados:** Salvamento automático no LocalStorage.
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+- **HTML5 & CSS3:** Animações keyframes, Flexbox, Grid, Variáveis CSS.
+- **JavaScript (ES6+):** Lógica modular dividida em gerenciadores de estado, cenas e rede.
+- **PeerJS:** Abstração para WebRTC Data Channels.
+
+---
+
+## 🎮 Como Jogar
+
+1. **Acesse o Jogo:** Abra o link do deploy (ou abra o `index.html` localmente).
+2. **Crie uma Sala:** O Jogador 1 clica em "Criar Sala" e copia o ID gerado.
+3. **Conecte-se:** O Jogador 2 cola o ID e clica em "Entrar".
+4. **Escolha seu Herói:**
+   - **Lyra (A Caçadora):** Especialista em Fogo e combate à distância.
+   - **Daren (O Curandeiro):** Especialista em Coração e suporte.
+5. **Aventurem-se:** Leiam a história, discutam as decisões e rolem os dados para definir o destino das Terras de Ferro.
+
+---
+
+## 📂 Estrutura do Projeto
+
+```bash
+rpg-terras-de-ferro/
+├── index.html          # Entry point e estrutura DOM
+├── css/
+│   └── style.css       # Estilização, animações e responsividade
+├── js/
+│   ├── game.js         # Core loop, gerenciamento de UI e orquestração
+│   ├── characters.js   # Classes de personagens, inventário e save system
+│   ├── dice.js         # Lógica matemática e visual dos dados
+│   ├── multiplayer.js  # Lógica de rede (PeerJS) e sincronização
+│   └── scenes.js       # Banco de dados narrativo (JSON-like structure)
+└── assets/             # Imagens e avatares
+```
+
+---
+
+## 🚀 Instalação e Desenvolvimento
+
+Este projeto não requer build tools complexos (como Webpack ou Vite) para rodar, mantendo a simplicidade.
+
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/AnnyKaah/terras-de-ferro-rpg.git
+   ```
+2. Abra o arquivo `index.html` no seu navegador.
+   *Recomendação: Use a extensão "Live Server" do VS Code para evitar problemas de CORS com módulos ES6, se houver.*

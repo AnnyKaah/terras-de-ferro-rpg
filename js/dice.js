@@ -6,6 +6,7 @@ let currentRollContext = {
     bonus: 0,
     callback: null
 };
+let lastRollResult = null; // Armazena o resultado para não perder ao fechar tutorial
 
 function showDiceRoller(playerNum = null, attribute = 'ferro', bonus = 0, callback = null) {
     currentRollContext = { playerNum, attribute, bonus, callback };
@@ -45,6 +46,11 @@ function closeDiceModal() {
     const modal = document.getElementById('dice-modal');
     modal.classList.remove('active');
     
+    // IMPORTANTE: Reativa os cartões de decisão caso tenham sido bloqueados
+    if (typeof enableDecisionCards === 'function') {
+        enableDecisionCards();
+    }
+    
     // Reseta o contexto
     currentRollContext = {
         playerNum: null,
@@ -65,9 +71,15 @@ function useBondForRoll() {
     }
 }
 
-function rollDice(playerNum) {
+function rollDice(playerNum, remoteData = null) {
     const player = gameState.getPlayer(playerNum);
     if (!player) return;
+
+    // Se não for dados remotos e não for meu personagem (e estivermos online), bloqueia
+    if (!remoteData && myPlayerId !== 0 && player.playerId !== myPlayerId) {
+        alert("Apenas o dono do personagem pode rolar os dados!");
+        return;
+    }
     
     // Pega o atributo e bônus do contexto
     const { attribute, bonus } = currentRollContext;
@@ -76,10 +88,19 @@ function rollDice(playerNum) {
     let attrValue = gameState.getStat(playerNum, attribute) || 1;
     attrValue += bonus;
     
-    // Rola os dados
-    const d6 = Math.ceil(Math.random() * 6);
-    const d10_1 = Math.ceil(Math.random() * 10);
-    const d10_2 = Math.ceil(Math.random() * 10);
+    let d6, d10_1, d10_2;
+
+    if (remoteData) {
+        // Usar dados vindos do outro jogador
+        d6 = remoteData.d6;
+        d10_1 = remoteData.d10_1;
+        d10_2 = remoteData.d10_2;
+    } else {
+        // Gerar novos dados
+        d6 = Math.ceil(Math.random() * 6);
+        d10_1 = Math.ceil(Math.random() * 10);
+        d10_2 = Math.ceil(Math.random() * 10);
+    }
     
     const total = d6 + attrValue;
     
@@ -101,9 +122,18 @@ function rollDice(playerNum) {
         resultText = '❌ Falha';
     }
     
+    // Salva o resultado atual
+    lastRollResult = { result, total, d10_1, d10_2 };
+
     // Exibe o resultado
     displayDiceResult(d6, attrValue, total, d10_1, d10_2, result, resultText);
     
+    // Se fui eu que rolei, envia para o outro jogador ver a mesma coisa
+    if (!remoteData && typeof sendDiceRoll === 'function') {
+        const rollData = { d6, d10_1, d10_2, result, total, attrValue };
+        sendDiceRoll(playerNum, rollData);
+    }
+
     // Log do resultado
     gameState.log(`🎲 ${player.name} rolou: ${resultText} (${total} vs ${d10_1}/${d10_2})`);
     
@@ -112,6 +142,7 @@ function rollDice(playerNum) {
         if (!gameState.tutorialSeen) {
             // Se estiver no tutorial, mostra a explicação do resultado
             showTutorialStep2(result, total, d10_1, d10_2);
+            // NÃO executa o callback aqui, espera o usuário clicar em "Entendi"
         } else {
             setTimeout(() => {
                 currentRollContext.callback(result, total, d10_1, d10_2);
@@ -121,6 +152,20 @@ function rollDice(playerNum) {
     }
     
     return { result, total, d10_1, d10_2 };
+}
+
+// Função chamada pelo multiplayer.js quando recebe dados
+function replayRemoteDiceRoll(playerNum, rollData) {
+    // Abre o modal se não estiver aberto, para ver a animação
+    showDiceRoller(playerNum, 'ferro', 0, null); // Atributo dummy, será sobrescrito visualmente
+
+    // Desativa os botões de rolagem para o espectador
+    const diceOptions = document.querySelectorAll('.btn-dice');
+    diceOptions.forEach(btn => {
+        btn.disabled = true;
+        btn.style.cursor = 'not-allowed';
+    });
+    rollDice(playerNum, rollData);
 }
 
 function displayDiceResult(d6, attr, total, d10_1, d10_2, result, resultText) {
@@ -251,53 +296,14 @@ function finishTutorial() {
     document.getElementById('tutorial-tooltip').classList.remove('active');
     document.getElementById('dice-result').classList.remove('tutorial-highlight');
     
-    // Executa o callback pendente
-    const { result, total, d10_1, d10_2 } = rollDice(currentRollContext.playerNum); // Re-executa lógica visual ou apenas avança
-    // Nota: rollDice já foi chamado, precisamos apenas fechar.
-    // Mas como rollDice foi chamado para gerar os números, precisamos apenas chamar o callback.
-    // O rollDice anterior já gerou os números visuais.
-    
-    // Correção: Apenas chamar o callback original
-    if (currentRollContext.callback) {
-        // Recalcula resultado visualmente já está lá, mas precisamos passar os valores corretos
-        // Pegamos do DOM para simplificar ou recalculamos?
-        // Melhor: O showTutorialStep2 recebeu os valores. Vamos fechar o modal.
-        
-        // Pequeno hack: O callback espera os resultados, mas o tutorial interrompeu o fluxo.
-        // Vamos apenas fechar o modal e deixar o jogo seguir, pois o resultado visual já foi processado.
-        // O callback do game.js (applyDecisionResult) precisa ser chamado.
-        
-        // Recupera valores da tela
-        const totalVal = parseInt(document.getElementById('total-result').textContent);
-        const d10_1Val = parseInt(document.getElementById('d10-1-result').textContent);
-        const d10_2Val = parseInt(document.getElementById('d10-2-result').textContent);
-        
-        let res = 'fail';
-        if (totalVal > d10_1Val && totalVal > d10_2Val) res = 'success';
-        else if (totalVal > d10_1Val || totalVal > d10_2Val) res = 'partial';
-        
-        currentRollContext.callback(res, totalVal, d10_1Val, d10_2Val);
+    // Executa o callback usando o resultado que JÁ foi calculado (sem rolar de novo)
+    if (currentRollContext.callback && lastRollResult) {
+        currentRollContext.callback(
+            lastRollResult.result, 
+            lastRollResult.total, 
+            lastRollResult.d10_1, 
+            lastRollResult.d10_2
+        );
         closeDiceModal();
-    }
-}
-function rollOracle() {
-    const d100 = Math.floor(Math.random() * 100) + 1;
-    let answer = "";
-    
-    // Chance 50/50 padrão do Ironsworn
-    if (d100 >= 1 && d100 <= 10) answer = "Não, e algo piora...";
-    else if (d100 >= 11 && d100 <= 50) answer = "Não.";
-    else if (d100 >= 51 && d100 <= 90) answer = "Sim.";
-    else if (d100 >= 91 && d100 <= 100) answer = "Sim, e com uma vantagem extra!";
-    
-    gameState.log(`🔮 <span class="log-oracle">Oráculo diz: ${answer} (Rolou ${d100})</span>`);
-    
-    // Se quiser apimentar, gera uma Reviravolta (Ação + Tema)
-    if (d100 <= 10 || d100 >= 91) {
-        const acoes = ["Atacar", "Proteger", "Trair", "Revelar", "Perder", "Buscar"];
-        const temas = ["Sangue", "Aliado", "Refúgio", "Segredo", "Medo", "Esperança"];
-        const acao = acoes[Math.floor(Math.random() * acoes.length)];
-        const tema = temas[Math.floor(Math.random() * temas.length)];
-        gameState.log(`⚡ <span class="log-oracle">Reviravolta: ${acao} [${tema}]</span>`);
     }
 }
