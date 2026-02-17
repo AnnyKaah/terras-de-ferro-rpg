@@ -9,7 +9,7 @@ const SCENES = [
         description: [
             "É fim de tarde. A aldeia é pequena — talvez 40 pessoas. As casas são de madeira escura e pedra. O lago ao fundo brilha de forma estranha sob o crepúsculo.",
             "Poucos aldeões estão nas ruas, e os que estão evitam olhar nos olhos de vocês.",
-            'Uma mulher idosa chamada Solveig se aproxima: "Forasteiros… vieram pela névoa, é? Melhor entrar antes do anoitecer. Já perdi meu filho para ela."'
+            'Uma mulher idosa chamada Solveig se aproxima: <blockquote>"Forasteiros… vieram pela névoa, é? Melhor entrar antes do anoitecer. Já perdi meu filho para ela."</blockquote>'
         ],
         decisionTitle: "O que vocês fazem?",
         decisions: [
