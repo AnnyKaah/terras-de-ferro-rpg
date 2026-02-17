@@ -513,27 +513,31 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('🎮 Terras de Ferro carregado!');
     checkSaveGame();
 });
+// --- SISTEMA DE TUTORIAL ---
+
 function closeTutorial() {
-    // Pega os elementos do tutorial na tela
+    // Pega os elementos do HTML
     const overlay = document.getElementById('tutorial-overlay');
     const tooltip = document.getElementById('tutorial-tooltip');
     
-    // Remove as classes e esconde eles
+    // Esconde os elementos removendo a classe e forçando o display none
     if (overlay) {
         overlay.classList.remove('active');
-        overlay.style.display = 'none'; // Garantia extra
+        overlay.style.display = 'none';
     }
     if (tooltip) {
         tooltip.classList.remove('active');
-        tooltip.style.display = 'none'; // Garantia extra
+        tooltip.style.display = 'none';
     }
     
-    // NOVO: Avisa ao jogo que o jogador já viu o tutorial e salva
+    // Atualiza o estado do jogo para lembrar que o tutorial já foi visto
     if (typeof gameState !== 'undefined') {
         gameState.tutorialSeen = true;
-        gameState.save();
+        gameState.save(); // Salva no localStorage para não mostrar na próxima vez
+        console.log("Tutorial fechado e salvo.");
     }
 }
+
 function handleChatKey(event) {
     if (event.key === 'Enter') sendChatMessage();
 }
