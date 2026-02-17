@@ -380,25 +380,32 @@ class GameState {
     // --- Sistema de Salvamento ---
 
     save() {
-        try {
-            const data = {
-                player1: this.player1,
-                player2: this.player2,
-                currentScene: this.currentScene,
-                progress: this.progress,
-                inventory: this.inventory,
-                gameLog: this.gameLog,
-                currentMission: this.currentMission,
-                unlockedAchievements: this.unlockedAchievements,
-                journal: this.journal,
-                bond: this.bond,
-                tutorialSeen: this.tutorialSeen
-            };
-            localStorage.setItem('terrasDeFerroSave', JSON.stringify(data));
-        } catch (e) {
-            console.error("Erro ao salvar jogo:", e);
-        }
-    }
+        try {
+            const data = {
+                player1: this.player1,
+                player2: this.player2,
+                currentScene: this.currentScene,
+                progress: this.progress,
+                inventory: this.inventory,
+                gameLog: this.gameLog,
+                currentMission: this.currentMission,
+                unlockedAchievements: this.unlockedAchievements,
+                journal: this.journal,
+                bond: this.bond,
+                tutorialSeen: this.tutorialSeen
+            };
+            localStorage.setItem('terrasDeFerroSave', JSON.stringify(data));
+
+            // NOVO: Adicione esta parte para o Multiplayer!
+            // Sempre que o jogo salvar localmente, ele tenta enviar para o outro jogador
+            if (typeof syncGameState === "function") {
+                syncGameState();
+            }
+
+        } catch (e) {
+            console.error("Erro ao salvar jogo:", e);
+        }
+    }
 
     load() {
         try {
