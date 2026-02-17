@@ -280,3 +280,24 @@ function finishTutorial() {
         closeDiceModal();
     }
 }
+function rollOracle() {
+    const d100 = Math.floor(Math.random() * 100) + 1;
+    let answer = "";
+    
+    // Chance 50/50 padrão do Ironsworn
+    if (d100 >= 1 && d100 <= 10) answer = "Não, e algo piora...";
+    else if (d100 >= 11 && d100 <= 50) answer = "Não.";
+    else if (d100 >= 51 && d100 <= 90) answer = "Sim.";
+    else if (d100 >= 91 && d100 <= 100) answer = "Sim, e com uma vantagem extra!";
+    
+    gameState.log(`🔮 <span class="log-oracle">Oráculo diz: ${answer} (Rolou ${d100})</span>`);
+    
+    // Se quiser apimentar, gera uma Reviravolta (Ação + Tema)
+    if (d100 <= 10 || d100 >= 91) {
+        const acoes = ["Atacar", "Proteger", "Trair", "Revelar", "Perder", "Buscar"];
+        const temas = ["Sangue", "Aliado", "Refúgio", "Segredo", "Medo", "Esperança"];
+        const acao = acoes[Math.floor(Math.random() * acoes.length)];
+        const tema = temas[Math.floor(Math.random() * temas.length)];
+        gameState.log(`⚡ <span class="log-oracle">Reviravolta: ${acao} [${tema}]</span>`);
+    }
+}
