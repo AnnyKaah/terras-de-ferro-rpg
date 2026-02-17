@@ -59,7 +59,7 @@ const SCENES = [
         description: [
             "Quando o sol se põe, a névoa negra rola pelo vale. Ela é densa, fria e cheira a terra molhada e algo mais — sangue velho e ferro enferrujado.",
             "Três criaturas emergem da névoa — humanoides distorcidos, feitos de sombra e fumaça. Elas cercam vocês lentamente.",
-            'A do centro para e levanta um braço — não para atacar, mas para apontar. Aponta para dentro da aldeia. Para a casa do conselheiro Grend.'
+            "A do centro para e levanta um braço — não para atacar, mas para apontar. Aponta para dentro da aldeia. Para a casa do conselheiro Grend."
         ],
         decisionTitle: "Como reagir às criaturas?",
         decisions: [
@@ -194,7 +194,7 @@ const SCENES = [
         title: "A Traição no Caminho",
         description: [
             "A caminho do altar nas montanhas, vocês são emboscados. Mas não por criaturas — por dois aldeões armados, liderados por ninguém menos que Solveig.",
-            '"Vocês não vão destruir o altar. Meu filho Halvar está lá dentro. Se destruírem, ele morre de vez."',
+            'Ela empunha uma tocha trêmula e grita: <blockquote>"Vocês não vão destruir o altar! Meu filho Halvar está lá dentro. Se destruírem, ele morre de vez!"</blockquote>',
             "Ela não está mentindo. E ela não está errada."
         ],
         decisionTitle: "Como resolver a emboscada?",
@@ -243,9 +243,9 @@ const SCENES = [
         number: "Cena 5",
         title: "O Altar nas Montanhas",
         description: [
-            "O altar é uma pedra enorme coberta de runas. No centro, uma gema negra pulsa. Ao lado, Valdris, o Encantador, está sentado.",
-            '"Finalmente. Alguém que pode terminar o que comecei." Ele não criou a maldição. Ele está preso nela há 40 anos.',
-            "Ele revela que destruir a gema matará as almas presas. É preciso um sacrifício para libertá-las."
+            "O altar é uma pedra enorme coberta de runas. No centro, uma gema negra pulsa. Ao lado, Valdris, o Encantador, está sentado com os olhos brancos como leite.",
+            'Ele sorri fracamente ao ouvir os passos de vocês: <blockquote>"Finalmente. Alguém que pode terminar o que comecei."</blockquote>',
+            "E então vocês percebem: ele não criou a maldição. Ele está preso nela há 40 anos e revela que destruir a gema matará as almas presas. É preciso um sacrifício."
         ],
         decisionTitle: "O que fazer no altar?",
         decisions: [
@@ -311,8 +311,8 @@ const SCENES = [
         number: "Cena 6",
         title: "O Confronto com Aldrek",
         description: [
-            "A névoa se concentra e dela emerge Aldrek — um guerreiro colossal feito de raiva acumulada.",
-            '"Liberdade ou silêncio eterno. Escolham."',
+            "Com o ritual interrompido, a névoa se concentra no altar. Dela emerge Aldrek — um guerreiro colossal feito inteiramente de fumaça e raiva acumulada por séculos.",
+            'A voz dele ecoa na mente de vocês, como pedra arranhando metal: <blockquote>"Liberdade ou silêncio eterno. Escolham."</blockquote>',
             "Este é o momento final da primeira missão."
         ],
         decisionTitle: "Decisão Final da Missão 1",
@@ -339,7 +339,7 @@ const SCENES = [
                 }
             },
             {
-                icon: "️",
+                icon: "🕊️",
                 title: "Negociar com Aldrek",
                 description: "Daren tenta alcançar a humanidade restante no monstro.",
                 roll: "Daren → Coração (1d6 + 3)",
@@ -369,8 +369,8 @@ const SCENES = [
         number: "Cena 7",
         title: "O Lago Sombrio",
         description: [
-            "Três dias após Vorgheim. O Lago Sombrio começa a borbulhar. Lyra descobre que seu amuleto tem o mesmo símbolo do altar.",
-            "Kjeld, um pescador, revela uma entrada submersa. 'O verdadeiro altar está embaixo d'água'.",
+            "Três dias após Vorgheim. O Lago Sombrio começa a borbulhar. Lyra descobre que seu amuleto de família tem o mesmo símbolo do altar de Aldrek.",
+            'Kjeld, um velho pescador da região, se aproxima do barco e alerta: <blockquote>"O que foi selado acima foi apenas o reflexo. O verdadeiro altar está embaixo d\'água."</blockquote>',
             "Vocês precisam descer."
         ],
         decisionTitle: "Como explorar o lago?",
@@ -419,9 +419,9 @@ const SCENES = [
         number: "Cena 8",
         title: "A Cripta Submersa",
         description: [
-            "A caverna leva a uma cripta antiga. Daren traduz: 'Aqui jaz o que não deve acordar. Selado pelos Seis.'",
-            "Lyra vê o nome de seu avô, Erlan, entre os Seladores. Ela é a última descendente.",
-            "O Despertar só pode ser resselado por sangue dos Seis."
+            'A caverna leva a uma cripta incrivelmente antiga. Daren passa a mão pelas pedras e traduz a língua esquecida: <blockquote>"Aqui jaz o que não deve acordar. Selado pelos Seis. Quando o sexto morrer, ele respira."</blockquote>',
+            "Lyra estremece ao ver o nome de seu avô, Erlan, entalhado entre os Seladores. Ela é a última descendente viva.",
+            "O Despertar só pode ser resselado por sangue da linhagem dos Seis."
         ],
         decisionTitle: "O que fazer com essa revelação?",
         decisions: [
@@ -469,8 +469,9 @@ const SCENES = [
         number: "Cena 9",
         title: "Os Guardiões de Nhar",
         description: [
-            "Quatro guardiões de pedra e névoa bloqueiam o caminho. Foram criados para impedir intrusos.",
-            "Um deles carrega um medalhão com o símbolo de Erlan, avô de Lyra."
+            "Descendo ao nível mais profundo, vocês encontram quatro guardiões de pedra e névoa.",
+            "Eles foram criados por Valdris antes de sua prisão para impedir que qualquer um chegasse à câmara central.",
+            "Curiosamente, um deles carrega um grande escudo de pedra entalhado com o mesmo símbolo de Erlan, avô de Lyra."
         ],
         decisionTitle: "Como passar pelos guardiões?",
         decisions: [
@@ -518,9 +519,9 @@ const SCENES = [
         number: "Cena 10",
         title: "A Torre Submersa de Nhar",
         description: [
-            "A câmara central contém uma torre onde queima uma chama negra: Nhar, a Fome Eterna.",
-            "No pedestal, o amuleto de Erlan tem um encaixe vazio esperando o sangue de Lyra.",
-            "Nhar está despertando."
+            "A câmara central é impossível de existir: uma torre inteira dentro da cripta. No topo, queima uma chama negra sem combustível: Nhar, a Fome Eterna.",
+            "No pedestal, o amuleto original de Erlan tem um encaixe vazio esperando o sangue de Lyra.",
+            "A torre treme. Nhar está sentindo a presença do último Selador e tenta impedir o ritual."
         ],
         decisionTitle: "O Dilema do Amuleto",
         decisions: [
@@ -568,9 +569,10 @@ const SCENES = [
         number: "Cena Final",
         title: "O Despertar de Nhar",
         description: [
-            "Nhar não é um ser, é uma mentira: a de que a fome é maior que tudo.",
-            "Para selá-lo, Lyra precisa acreditar que o laço entre vocês é mais forte que o vazio.",
-            "Conversem entre si: o que seus personagens sentem um pelo outro agora?"
+            "Nhar não é um ser orgânico que se possa matar com espadas. É um conceito. Uma mentira ancestral de que a fome e o vazio são maiores do que tudo.",
+            "Para selá-lo permanentemente, Lyra precisa acreditar na mesma verdade que os Seis originais descobriram: que o laço entre as pessoas é mais forte que o vazio eterno.",
+            "Daren olha nos olhos dela, em meio ao caos desmoronando.",
+            "Conversem entre si fora do jogo agora: o que os personagens de vocês significam um para o outro após passarem por tudo isso juntos?"
         ],
         decisionTitle: "Decisão Final da Campanha",
         decisions: [
@@ -582,9 +584,9 @@ const SCENES = [
                 requiresRoll: true,
                 rollInfo: { playerNum: 2, attribute: 'coracao' },
                 outcomes: {
-                    success: "O amuleto explode em luz. Nhar some. O lago fica azul. Vocês venceram!",
-                    partial: "Nhar é selado, mas o amuleto parte ao meio. Uma ligação permanente entre vocês.",
-                    fail: "O selo falha parcialmente. Nhar escapa enfraquecido. A luta continua outro dia."
+                    success: "O amuleto explode em luz branca ofuscante. Nhar urra e se desfaz. O lago lá fora fica azul pela primeira vez em séculos. Vocês venceram!",
+                    partial: "Nhar é selado, mas o amuleto parte ao meio. Metade fica com Lyra, metade com Daren. Uma ligação mágica permanente entre vocês.",
+                    fail: "O selo falha parcialmente. Nhar escapa pelo mundo, enfraquecido mas vivo. A luta de vocês continuará outro dia."
                 },
                 effects: {
                     success: { progress: 2, achievement: 'lenda', bond: 2 },
@@ -595,14 +597,14 @@ const SCENES = [
             {
                 icon: "✨",
                 title: "Sacrificar o Amuleto",
-                description: "Lyra decide destruir a herança de sua família para acabar com Nhar de vez.",
+                description: "Lyra decide destruir a herança de sua família e usar a explosão de energia para acabar com Nhar de vez.",
                 roll: "Lyra → Ferro (1d6 + 1)",
                 requiresRoll: true,
                 rollInfo: { playerNum: 1, attribute: 'ferro' },
                 outcomes: {
-                    success: "O amuleto se desfaz em energia pura. Nhar é desfeito. Final definitivo.",
-                    partial: "Nhar recua, dormente por gerações. É suficiente por hoje.",
-                    fail: "A energia é absorvida. Nhar fica mais forte. Fujam!"
+                    success: "O amuleto se desfaz em energia pura que varre a cripta. Nhar é completamente desfeito. Final definitivo.",
+                    partial: "A explosão faz Nhar recuar. Ele não está morto, mas ficará dormente por gerações. É o suficiente por hoje.",
+                    fail: "Nhar absorve a energia da explosão e fica mais forte. A cripta desaba. Fujam por suas vidas!"
                 },
                 effects: {
                     success: { progress: 2 },
