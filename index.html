@@ -229,7 +229,13 @@
                 </div>
 
                 <div id="log-container" class="log-container">
+                    
                     <!-- Histórico de ações -->
+                </div>
+                <div class="chat-input-container">
+                    <button class="btn-oracle" onclick="rollOracle()">🔮 Oráculo</button>
+                    <input type="text" id="chat-input" placeholder="Fale em personagem ou digite /rolar fogo..." onkeypress="handleChatKey(event)">
+                    <button class="btn-primary btn-small" onclick="sendChatMessage()">Enviar</button>
                 </div>
             </main>
         </div>
