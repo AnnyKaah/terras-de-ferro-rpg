@@ -84,7 +84,7 @@ function rollDice(playerNum, remoteData = null) {
     if (!player) return;
 
     // Se não for dados remotos e não for meu personagem (e estivermos online), bloqueia
-    if (!remoteData && myPlayerId !== 0 && player.playerId !== myPlayerId) {
+    if (!remoteData && !isSoloMode && myPlayerId !== 0 && player.playerId !== myPlayerId) {
         alert("Apenas o dono do personagem pode rolar os dados!");
         return;
     }
@@ -103,6 +103,8 @@ function rollDice(playerNum, remoteData = null) {
         d6 = remoteData.d6;
         d10_1 = remoteData.d10_1;
         d10_2 = remoteData.d10_2;
+        // Usa o total calculado pelo outro jogador para garantir sincronia perfeita
+        // e evitar bugs se os atributos locais estiverem desatualizados
     } else {
         // Gerar novos dados
         d6 = Math.ceil(Math.random() * 6);
@@ -110,7 +112,7 @@ function rollDice(playerNum, remoteData = null) {
         d10_2 = Math.ceil(Math.random() * 10);
     }
     
-    const total = d6 + attrValue;
+    const total = remoteData ? remoteData.total : (d6 + attrValue);
     
     // Determina o resultado
     let result = 'fail';
@@ -165,8 +167,11 @@ function rollDice(playerNum, remoteData = null) {
 
 // Função chamada pelo multiplayer.js quando recebe dados
 function replayRemoteDiceRoll(playerNum, rollData) {
-    // Abre o modal se não estiver aberto, para ver a animação
-    showDiceRoller(playerNum, 'ferro', 0, null); // Atributo dummy, será sobrescrito visualmente
+    // Preserva o contexto atual (callback) que foi configurado pelo handleDecision
+    // Isso garante que o jogo saiba avançar a cena após a rolagem
+    const { attribute, bonus, callback } = currentRollContext;
+
+    showDiceRoller(playerNum, attribute || 'ferro', bonus || 0, callback);
 
     // Desativa os botões de rolagem para o espectador
     const diceOptions = document.querySelectorAll('.btn-dice');

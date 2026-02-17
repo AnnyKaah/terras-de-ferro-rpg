@@ -1,5 +1,7 @@
 // game.js - Lógica principal do jogo (Core Loop, UI, Orquestração)
 
+var isSoloMode = false; // Controle do modo solo
+
 // Funções de Lobby
 function hostGame() {
     // Inicia o multiplayer
@@ -13,6 +15,8 @@ function hostGame() {
 }
 
 function startOfflineGame() {
+    isSoloMode = true;
+    showNotification("Modo Solo: Você controla ambos os personagens.", "info");
     document.getElementById('host-info').style.display = 'none';
     startGame();
 }
@@ -69,6 +73,17 @@ let playerSelections = { player1: null, player2: null };
 
 // Função chamada quando EU clico em selecionar
 function chooseCharacter(charId) {
+    if (isSoloMode) {
+        // Lógica para Modo Solo: Preenche P1, depois P2
+        if (!playerSelections.player1) {
+            handleRemoteSelection(1, charId);
+        } else if (!playerSelections.player2 && playerSelections.player1 !== charId) {
+            handleRemoteSelection(2, charId);
+        }
+        updateSelectionStatus();
+        return;
+    }
+
     if (myPlayerId === 0) {
         // Modo Offline / Teste: Assume Jogador 1 se não houver conexão
         myPlayerId = 1;
@@ -90,6 +105,16 @@ function handleRemoteSelection(playerNum, charId) {
 
 // Função para desfazer a seleção
 function undoCharacterSelection() {
+    if (isSoloMode) {
+        // Desfaz o último selecionado (P2, depois P1)
+        if (playerSelections.player2) {
+            handleRemoteUndo(2);
+        } else if (playerSelections.player1) {
+            handleRemoteUndo(1);
+        }
+        return;
+    }
+
     if (myPlayerId === 0) return;
 
     const playerKey = `player${myPlayerId}`;
@@ -119,13 +144,13 @@ function updateSelectionStatus() {
         const charId = card.getAttribute('data-char');
         
         // Se EU escolhi este card
-        if ((myPlayerId === 1 && playerSelections.player1 === charId) || 
-            (myPlayerId === 2 && playerSelections.player2 === charId)) {
+        if (isSoloMode ? (playerSelections.player1 === charId || playerSelections.player2 === charId) : 
+           ((myPlayerId === 1 && playerSelections.player1 === charId) || (myPlayerId === 2 && playerSelections.player2 === charId))) {
             card.classList.add('selected-by-me');
         }
         // Se o OUTRO escolheu este card
-        else if ((myPlayerId === 1 && playerSelections.player2 === charId) || 
-                 (myPlayerId === 2 && playerSelections.player1 === charId)) {
+        else if (!isSoloMode && ((myPlayerId === 1 && playerSelections.player2 === charId) || 
+                 (myPlayerId === 2 && playerSelections.player1 === charId))) {
             card.classList.add('taken');
         }
     });
@@ -148,7 +173,7 @@ function updateSelectionStatus() {
     
     // Mostra botão de desfazer se eu tiver selecionado algo
     const undoBtn = document.getElementById('undo-selection');
-    if ((myPlayerId === 1 && playerSelections.player1) || (myPlayerId === 2 && playerSelections.player2)) {
+    if (isSoloMode ? (playerSelections.player1 || playerSelections.player2) : ((myPlayerId === 1 && playerSelections.player1) || (myPlayerId === 2 && playerSelections.player2))) {
         undoBtn.style.display = 'block';
     } else {
         undoBtn.style.display = 'none';
@@ -294,6 +319,7 @@ function loadScene(sceneIndex) {
     
     gameState.log(`📖 ${scene.number}: ${scene.title}`);
     audioManager.playSound('sfx_notification');
+    updateTurnIndicators(scene);
 }
 
 function renderDecision(decision, index) {
@@ -315,6 +341,39 @@ function renderDecision(decision, index) {
             ${decision.outcomes ? `<div class="outcomes">${renderOutcomes(decision.outcomes)}</div>` : ''}
         </div>
     `;
+}
+
+function updateTurnIndicators(scene) {
+    const p1Status = document.getElementById('char1-status');
+    const p2Status = document.getElementById('char2-status');
+    
+    if (!p1Status || !p2Status) return;
+    
+    // Limpa estados anteriores
+    p1Status.classList.remove('active-turn');
+    p2Status.classList.remove('active-turn');
+    
+    if (!scene.decisions) return;
+    
+    let p1Active = false;
+    let p2Active = false;
+    
+    scene.decisions.forEach(d => {
+        // Verifica se a decisão está visível (requisitos)
+        if (d.requires && d.requires.bond && gameState.bond < d.requires.bond) return;
+
+        if (d.requiresRoll && d.rollInfo) {
+            if (d.rollInfo.playerNum === 1) p1Active = true;
+            if (d.rollInfo.playerNum === 2) p2Active = true;
+        } else {
+            // Decisões narrativas ou sem rolagem específica: ambos podem agir
+            p1Active = true;
+            p2Active = true;
+        }
+    });
+    
+    if (p1Active) p1Status.classList.add('active-turn');
+    if (p2Active) p2Status.classList.add('active-turn');
 }
 
 function renderOutcomes(outcomes) {
