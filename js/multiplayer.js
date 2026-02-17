@@ -44,8 +44,12 @@ function initMultiplayer() {
             hideConnectionLostModal();
             syncGameState();
             gameState.log("♻️ Jogador 2 reconectado!");
+        } else if (!document.getElementById('character-screen').classList.contains('active')) {
+            // Só inicia o jogo se ainda não estivermos na tela de seleção
+            setTimeout(() => startGame(true), 1000); 
         } else {
-            setTimeout(() => startGame(), 1000); // Inicia jogo novo
+            // Se já estiver na tela de seleção, apenas sincroniza o estado atual (seleções do host)
+            syncGameState();
         }
     });
 }
@@ -96,11 +100,21 @@ function setupConnection() {
             gameState.updateCharacterDisplay();
             gameState.updateLogDisplay();
             loadScene(gameState.currentScene);
+            
+            // Sincroniza a tela de seleção se estivermos nela
+            if (typeof syncUIFromGameState === 'function') {
+                syncUIFromGameState();
+            }
         }
         
         if (data.type === 'CHAR_SELECT') {
             // O outro jogador escolheu um personagem
             handleRemoteSelection(data.playerNum, data.charId);
+        }
+
+        if (data.type === 'UNDO_SELECT') {
+            // O outro jogador desfez a seleção
+            handleRemoteUndo(data.playerNum);
         }
 
         if (data.type === 'DICE_ROLL') {
@@ -116,6 +130,14 @@ function setupConnection() {
 
         if (data.type === 'SHOW_FLOAT') {
             showFloatingText(data.text, data.x, data.y, data.color);
+        }
+
+        if (data.type === 'CHAT_MESSAGE') {
+            gameState.log(data.message);
+        }
+
+        if (data.type === 'ORACLE_RESULT') {
+            gameState.log(data.message);
         }
     });
 }
@@ -135,6 +157,15 @@ function sendCharacterSelection(charId) {
             type: 'CHAR_SELECT',
             playerNum: myPlayerId,
             charId: charId
+        });
+    }
+}
+
+function sendUndoSelection() {
+    if (conn && conn.open) {
+        conn.send({
+            type: 'UNDO_SELECT',
+            playerNum: myPlayerId
         });
     }
 }
@@ -161,6 +192,18 @@ function sendDecisionClick(decisionIndex) {
 function sendFloatingText(text, x, y, color) {
     if (conn && conn.open) {
         conn.send({ type: 'SHOW_FLOAT', text, x, y, color });
+    }
+}
+
+function sendChat(logMessage) {
+    if (conn && conn.open) {
+        conn.send({ type: 'CHAT_MESSAGE', message: logMessage });
+    }
+}
+
+function sendOracleResult(logMessage) {
+    if (conn && conn.open) {
+        conn.send({ type: 'ORACLE_RESULT', message: logMessage });
     }
 }
 

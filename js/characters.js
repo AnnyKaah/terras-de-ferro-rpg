@@ -95,7 +95,7 @@ class GameState {
         this.currentMission = 1;
         this.unlockedAchievements = [];
         this.journal = [];
-        this.bond = 1; // Começam com 1 ponto de laço
+        this.bond = 2; // Aumentado para 2 para facilitar para iniciantes
         this.maxBond = 5;
         this.tutorialSeen = false;
     }
@@ -104,9 +104,9 @@ class GameState {
         const char = JSON.parse(JSON.stringify(CHARACTERS[charId]));
         
         if (playerNum === 1) {
-            this.player1 = { ...char, playerId: 1 };
+            this.player1 = { ...char, playerId: 1, charId: charId };
         } else {
-            this.player2 = { ...char, playerId: 2 };
+            this.player2 = { ...char, playerId: 2, charId: charId };
         }
     }
 
@@ -124,7 +124,7 @@ class GameState {
         this.updateCharacterDisplay();
         
         if (player.status.health === 0) {
-            this.log(`⚠️ ${player.name} está em perigo de morte!`);
+            this.log(`⚠️ ${player.name} está em perigo de morte!`, 'danger');
         }
     }
 
@@ -134,7 +134,7 @@ class GameState {
         this.updateCharacterDisplay();
         
         if (player.status.spirit === 0) {
-            this.log(`😰 ${player.name} entrou em colapso emocional!`);
+            this.log(`😰 ${player.name} entrou em colapso emocional!`, 'danger');
         }
     }
 
@@ -147,7 +147,7 @@ class GameState {
     updateBond(amount) {
         this.bond = Math.max(0, Math.min(this.maxBond, this.bond + amount));
         this.updateBondDisplay();
-        if (amount > 0) this.log(`❤️ Laço fortalecido! (+${amount})`);
+        if (amount > 0) this.log(`❤️ Laço fortalecido! (+${amount})`, 'info');
     }
 
     updateBondDisplay() {
@@ -174,10 +174,10 @@ class GameState {
     addProgress(points) {
         this.progress = Math.min(this.maxProgress, this.progress + points);
         this.updateProgressDisplay();
-        this.log(`📈 +${points} pontos de progresso! (${this.progress}/${this.maxProgress})`);
+        this.log(`📈 +${points} pontos de progresso! (${this.progress}/${this.maxProgress})`, 'info');
         
         if (this.progress >= this.maxProgress) {
-            this.log(`🎉 Juramento completo! Chegou ao confronto final!`);
+            this.log(`🎉 Juramento completo! Chegou ao confronto final!`, 'success');
         }
     }
 
@@ -191,7 +191,7 @@ class GameState {
         this.inventory.push(newItem);
         
         const ownerName = owner === 1 ? (this.player1 ? this.player1.name : 'Jogador 1') : (this.player2 ? this.player2.name : 'Jogador 2');
-        this.log(`🎒 ${ownerName} obteve: ${itemName}`);
+        this.log(`🎒 ${ownerName} obteve: ${itemName}`, 'info');
     }
 
     removeItem(itemName) {
@@ -200,7 +200,7 @@ class GameState {
         if (index > -1) {
             const removed = this.inventory.splice(index, 1)[0];
             const name = removed.name || removed;
-            this.log(`🗑️ Item perdido: ${name}`);
+            this.log(`🗑️ Item perdido: ${name}`, 'info');
         }
     }
 
@@ -209,7 +209,52 @@ class GameState {
         if (item) {
             item.owner = newOwner;
             const newOwnerName = newOwner === 1 ? this.player1.name : this.player2.name;
-            this.log(`🤝 Item entregue para ${newOwnerName}: ${item.name}`);
+            this.log(`🤝 Item entregue para ${newOwnerName}`, 'info');
+        }
+    }
+
+    // Novo: Adiciona um item equipado a um jogador
+    equipItem(itemId, playerNum, slot) {
+        const item = this.inventory.find(i => i.id === itemId);
+        if (item && item.slot === slot) { // Verifica se o item pode ser equipado no slot
+            const player = this.getPlayer(playerNum);
+            if (player) {
+                // Desequipa o item antigo no mesmo slot, se houver
+                this.unequipItemBySlot(playerNum, slot);
+
+                player.equippedItems[slot] = item;
+                item.equipped = true;
+                this.log(`⚔️ ${player.name} equipou ${item.name}!`, 'info');
+                this.updateCharacterDisplay();
+            }
+        } else {
+            this.log(`⚠️ ${item.name} não pode ser equipado no slot ${slot}.`, 'warning');
+        }
+    }
+
+    // Novo: Remove um item equipado de um jogador
+    unequipItem(itemId, playerNum) {
+        const item = this.inventory.find(i => i.id === itemId);
+        if (item && item.equipped) {
+            const player = this.getPlayer(playerNum);
+            if (player && player.equippedItems[item.slot] && player.equippedItems[item.slot].id === itemId) {
+                delete player.equippedItems[item.slot];
+                item.equipped = false;
+                this.log(`🛡️ ${player.name} desequipou ${item.name}.`, 'info');
+                this.updateCharacterDisplay();
+            }
+        }
+    }
+
+    // Novo: Desequipa um item de um slot específico
+    unequipItemBySlot(playerNum, slot) {
+        const player = this.getPlayer(playerNum);
+        if (player && player.equippedItems[slot]) {
+            const item = player.equippedItems[slot];
+            item.equipped = false;
+            delete player.equippedItems[slot];
+            this.log(`🛡️ ${player.name} desequipou ${item.name} do slot ${slot}.`, 'info');
+            this.updateCharacterDisplay();
         }
     }
 
@@ -218,7 +263,7 @@ class GameState {
         if (this.unlockedAchievements.includes(id)) return;
 
         this.unlockedAchievements.push(id);
-        this.log(`🏆 Conquista Desbloqueada: ${ACHIEVEMENTS_DATA[id].title}`);
+        this.log(`🏆 Conquista Desbloqueada: ${ACHIEVEMENTS_DATA[id].title}`, 'success');
         this.showAchievementNotification(ACHIEVEMENTS_DATA[id]);
     }
 
@@ -253,13 +298,14 @@ class GameState {
             resultType,
             timestamp: new Date()
         });
-        this.log(`✍️ Diário atualizado.`);
+        this.log(`✍️ Diário atualizado.`, 'system');
     }
 
-    log(message) {
+    log(message, type = 'system') {
         this.gameLog.push({
             text: message,
-            timestamp: new Date()
+            timestamp: new Date(),
+            type: type
         });
         this.updateLogDisplay();
     }
@@ -306,7 +352,7 @@ class GameState {
         const player = this.getPlayer(playerNum);
         if (!player) return;
 
-        const element = document.getElementById(elementId);
+        const element = document.getElementById(elementId); // Corrigido para usar elementId
         if (!element) return;
 
         const healthPercent = (player.status.health / player.status.maxHealth) * 100;
@@ -315,26 +361,41 @@ class GameState {
 
         element.innerHTML = `
             <h4><img src="${player.avatar}" class="char-avatar-small"> ${player.name}</h4>
-            <div class="status-bar">
+            <div class="status-bar" data-tooltip="Saúde: Condição física. Se chegar a 0, você corre risco de morte.">
                 <span>❤️</span>
                 <div class="bar-container">
                     <div class="bar-fill health" style="width: ${healthPercent}%"></div>
                 </div>
                 <span>${player.status.health}/${player.status.maxHealth}</span>
             </div>
-            <div class="status-bar">
+            <div class="status-bar" data-tooltip="Espírito: Condição mental. Se chegar a 0, você entra em colapso.">
                 <span>🧠</span>
                 <div class="bar-container">
                     <div class="bar-fill spirit" style="width: ${spiritPercent}%"></div>
                 </div>
                 <span>${player.status.spirit}/${player.status.maxSpirit}</span>
             </div>
-            <div class="status-bar">
+            <div class="status-bar" data-tooltip="Suprimentos: Comida e recursos. Necessário para Descansar e viajar.">
                 <span>🎒</span>
                 <div class="bar-container">
                     <div class="bar-fill supplies" style="width: ${suppliesPercent}%"></div>
                 </div>
                 <span>${player.status.supplies}/${player.status.maxSupplies}</span>
+            </div>
+            <div class="player-equipment">
+                <p>Equipamento:</p>
+                ${Object.keys(player.equippedItems || {}).map(slot => {
+                    const item = player.equippedItems[slot];
+                    return `<div class="equipped-item" data-tooltip="${item.name} (${slot})">
+                                ${item.icon || '🛡️'} ${item.name}
+                            </div>`;
+                }).join('')}
+                ${Object.keys(player.equippedItems || {}).length === 0 ? '<p class="text-muted">Nenhum item equipado.</p>' : ''}
+            </div>
+            <div class="player-level-xp">
+                <span>⭐ Nível: ${player.level}</span>
+                <span>✨ XP: ${player.xp}/${this.xpToNextLevel}</span>
+                <div class="xp-bar-container"><div class="xp-bar-fill" style="width: ${(player.xp / this.xpToNextLevel) * 100}%"></div></div>
             </div>
         `;
     }
@@ -370,17 +431,14 @@ class GameState {
 
     updateLogDisplay() {
         const logContainer = document.getElementById('log-container');
-        if (!logContainer) return;
+        if (!logContainer) return;        
 
-        const recentLogs = this.gameLog.slice(-5).reverse();
-        logContainer.innerHTML = recentLogs.map(log => `
-            <div class="log-entry">${log.text}</div>
+        logContainer.innerHTML = this.gameLog.slice(-10).map(log => `
+            <div class="log-entry ${log.type || 'system'}">${log.text}</div>
         `).join('');
-    }
 
-    getStat(playerNum, statName) {
-        const player = this.getPlayer(playerNum);
-        return player.stats[statName] || 0;
+        // Auto-scroll to bottom
+        logContainer.scrollTop = logContainer.scrollHeight;
     }
 
     // --- Sistema de Salvamento ---
@@ -398,7 +456,13 @@ class GameState {
                 unlockedAchievements: this.unlockedAchievements,
                 journal: this.journal,
                 bond: this.bond,
-                tutorialSeen: this.tutorialSeen
+                tutorialSeen: this.tutorialSeen,
+                level: this.level,
+                xp: this.xp,
+                xpToNextLevel: this.xpToNextLevel,
+                // Salva também os itens equipados de cada jogador
+                player1: this.player1,
+                player2: this.player2
             };
             localStorage.setItem('terrasDeFerroSave', JSON.stringify(data));
         } catch (e) {
@@ -414,6 +478,11 @@ class GameState {
             const parsed = JSON.parse(data);
             this.player1 = parsed.player1;
             this.player2 = parsed.player2;
+            
+            // Garante compatibilidade com saves antigos (inicializa equippedItems se não existir)
+            if (this.player1 && !this.player1.equippedItems) this.player1.equippedItems = {};
+            if (this.player2 && !this.player2.equippedItems) this.player2.equippedItems = {};
+
             this.currentScene = parsed.currentScene || 0;
             this.progress = parsed.progress || 0;
             this.inventory = parsed.inventory || [];
@@ -444,6 +513,22 @@ class GameState {
         }
     }
 
+    // Novo: Calcula o valor de um atributo considerando itens equipados
+    getStat(playerNum, statName) {
+        const player = this.getPlayer(playerNum);
+        if (!player) return 0;
+
+        let baseStat = player.stats[statName] || 0;
+        // Adiciona bônus de itens equipados
+        for (const slot in player.equippedItems) {
+            const item = player.equippedItems[slot];
+            if (item.bonusStats && item.bonusStats[statName]) {
+                baseStat += item.bonusStats[statName];
+            }
+        }
+        return baseStat;
+    }
+
     reset() {
         // Reinicia o estado para um novo jogo
         Object.assign(this, new GameState());
@@ -464,14 +549,14 @@ class GameState {
         if (!daren) return;
 
         if (daren.healingUsed) {
-            this.log("⚠️ Daren já usou sua habilidade nesta sessão.");
+            this.log("⚠️ Daren já usou sua habilidade nesta sessão.", 'warning');
             return;
         }
 
         // Aplica a cura e marca como usado
         daren.healingUsed = true; // Marca antes para atualizar UI corretamente
         this.updateHealth(playerNum, 3);
-        this.log("🌿 Daren usou conhecimentos antigos para curar 3 de Saúde!");
+        this.log("🌿 Daren usou conhecimentos antigos para curar 3 de Saúde!", 'info');
         this.triggerHealingAnimation(playerNum);
     }
 

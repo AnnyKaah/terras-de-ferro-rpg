@@ -334,9 +334,6 @@ const SCENES = [
                     partial: { progress: 1, health: { 1: -2, 2: -2 } },
                     fail: { health: { 1: -3, 2: -3 } }
                 },
-                onSelect: () => {
-                    setTimeout(startMission2, 3000);
-                }
             },
             {
                 icon: "️",
@@ -354,10 +351,36 @@ const SCENES = [
                     success: { progress: 2 },
                     partial: { progress: 1 },
                     fail: { health: { 1: -2, 2: -2 } }
-                },
-                onSelect: () => {
-                    setTimeout(startMission2, 3000);
                 }
+            }
+        ]
+    },
+
+    // CENA 6.5 - Acampamento (Downtime)
+    {
+        number: "Interlúdio",
+        title: "Sob as Estrelas",
+        description: [
+            "A poeira da batalha assenta. Vocês encontram um lugar seguro para acampar e processar a vitória, por mais amarga que tenha sido.",
+            "A fogueira estala, lançando sombras dançantes em seus rostos cansados. É a primeira chance real que vocês têm para conversar desde que tudo começou."
+        ],
+        decisionTitle: "A conversa da noite",
+        decisions: [
+            {
+                icon: "💬",
+                title: "Relembrar os que se foram",
+                description: "Falar sobre as perdas e o custo da vitória. Isso fortalece a empatia mútua.",
+                requiresRoll: false,
+                effects: { success: { spirit: { 1: 1, 2: 1 } } }, // 'success' é uma chave para aplicar o efeito
+                onSelect: () => setTimeout(startMission2, 1000)
+            },
+            {
+                icon: "🗺️",
+                title: "Planejar o próximo passo",
+                description: "Focar no futuro e preparar os equipamentos para a próxima jornada, ignorando o peso emocional.",
+                requiresRoll: false,
+                effects: { success: { supplies: { 1: 1, 2: 1 } } },
+                onSelect: () => setTimeout(startMission2, 1000)
             }
         ]
     },
@@ -388,7 +411,13 @@ const SCENES = [
                     fail: "O barco afunda. Vocês nadam até a margem perdendo suprimentos."
                 },
                 effects: {
-                    success: { progress: 2, addItem: "Diário Antigo" },
+                    success: { 
+                        progress: 2, 
+                        addItem: [
+                            { name: "Diário Antigo" },
+                            { name: "Poção de Cura Menor", consumable: true, use: { effect: 'health', amount: 2, log: "🧪 Uma poção foi usada, restaurando 2 de Saúde!" } }
+                        ]
+                    },
                     partial: { progress: 1, health: { 1: -2 } },
                     fail: { supplies: { 1: -2, 2: -2 } }
                 }

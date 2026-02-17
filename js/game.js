@@ -1,10 +1,20 @@
-// game.js - Lógica principal do jogo
+// game.js - Lógica principal do jogo (Core Loop, UI, Orquestração)
 
 // Funções de Lobby
 function hostGame() {
-    document.getElementById('btn-host').style.display = 'none';
-    document.getElementById('host-info').style.display = 'block';
+    // Inicia o multiplayer
     initMultiplayer();
+    
+    // Avança para a tela de seleção imediatamente
+    startGame(true); // true = bypass save check para não travar o fluxo
+    
+    // Mostra o painel de ID na tela de personagens
+    document.getElementById('host-info').style.display = 'block';
+}
+
+function startOfflineGame() {
+    document.getElementById('host-info').style.display = 'none';
+    startGame();
 }
 
 function joinGameUI() {
@@ -13,6 +23,7 @@ function joinGameUI() {
     if (id) {
         document.getElementById('btn-join').textContent = "Conectando...";
         document.getElementById('btn-join').disabled = true;
+        audioManager.playSound('sfx_click');
         joinRoom(id);
     } else {
         alert("Por favor, insira o ID da sala.");
@@ -34,11 +45,13 @@ function startGame() {
 
 function showRules() {
     hideScreen('start-screen');
+    audioManager.playSound('sfx_click');
     showScreen('rules-screen');
 }
 
 function hideRules() {
     hideScreen('rules-screen');
+    audioManager.playSound('sfx_click');
     showScreen('start-screen');
 }
 
@@ -57,8 +70,10 @@ let playerSelections = { player1: null, player2: null };
 // Função chamada quando EU clico em selecionar
 function chooseCharacter(charId) {
     if (myPlayerId === 0) {
-        alert("Erro: Conexão multiplayer não estabelecida.");
-        return;
+        // Modo Offline / Teste: Assume Jogador 1 se não houver conexão
+        myPlayerId = 1;
+        audioManager.playSound('sfx_notification');
+        showNotification("Modo Offline: Você é o Jogador 1", "info");
     }
 
     // Atualiza localmente
@@ -73,11 +88,31 @@ function handleRemoteSelection(playerNum, charId) {
     selectCharacterLogic(playerNum, charId);
 }
 
+// Função para desfazer a seleção
+function undoCharacterSelection() {
+    if (myPlayerId === 0) return;
+
+    const playerKey = `player${myPlayerId}`;
+    playerSelections[playerKey] = null;
+    
+    // Limpa no gameState
+    if (myPlayerId === 1) gameState.player1 = null;
+    else gameState.player2 = null;
+
+    // Envia cancelamento para o outro jogador
+    if (typeof sendUndoSelection === 'function') {
+        sendUndoSelection();
+    }
+
+    updateSelectionStatus();
+}
+
 function updateSelectionStatus() {
     const statusEl = document.getElementById('selection-status');
     const confirmBtn = document.getElementById('confirm-chars');
     
     // Atualiza visual dos cartões (bordas pulsantes)
+    // ... (código existente)
     const cards = document.querySelectorAll('.character-card');
     cards.forEach(card => {
         card.classList.remove('selected-by-me', 'taken');
@@ -95,23 +130,33 @@ function updateSelectionStatus() {
         }
     });
 
-    let statusText = '';
-    // Constrói o texto de status
+    // Constrói o HTML de status melhorado
+    let p1Html = '<div class="player-status-card">👤 Jogador 1: Aguardando...</div>';
+    let p2Html = '<div class="player-status-card">👤 Jogador 2: Aguardando...</div>';
+
     if (playerSelections.player1) {
         const char1 = CHARACTERS[playerSelections.player1];
-        statusText += `👤 Jogador 1: ${char1.icon} ${char1.name}`;
+        p1Html = `<div class="player-status-card ready">👤 Jogador 1: ${char1.icon} ${char1.name}</div>`;
     }
     
     if (playerSelections.player2) {
         const char2 = CHARACTERS[playerSelections.player2];
-        if (statusText) statusText += '<br>';
-        statusText += `👤 Jogador 2: ${char2.icon} ${char2.name}`;
+        p2Html = `<div class="player-status-card ready">👤 Jogador 2: ${char2.icon} ${char2.name}</div>`;
     }
     
-    statusEl.innerHTML = statusText;
+    statusEl.innerHTML = p1Html + p2Html;
     
+    // Mostra botão de desfazer se eu tiver selecionado algo
+    const undoBtn = document.getElementById('undo-selection');
+    if ((myPlayerId === 1 && playerSelections.player1) || (myPlayerId === 2 && playerSelections.player2)) {
+        undoBtn.style.display = 'block';
+    } else {
+        undoBtn.style.display = 'none';
+    }
+
     // Mostra botão de confirmar se ambos escolheram
     if (playerSelections.player1 && playerSelections.player2) {
+        audioManager.playSound('sfx_notification');
         confirmBtn.textContent = "Começar Aventura!";
         confirmBtn.disabled = false;
         confirmBtn.style.display = 'block';
@@ -121,6 +166,24 @@ function updateSelectionStatus() {
         confirmBtn.disabled = true;
         confirmBtn.textContent = "Aguardando ambos os jogadores...";
     }
+}
+
+// Função para sincronizar a UI de seleção com o estado do jogo (chamada ao conectar)
+function syncUIFromGameState() {
+    // Atualiza playerSelections baseado no gameState recebido
+    if (gameState.player1 && gameState.player1.charId) {
+        playerSelections.player1 = gameState.player1.charId;
+    } else {
+        playerSelections.player1 = null;
+    }
+
+    if (gameState.player2 && gameState.player2.charId) {
+        playerSelections.player2 = gameState.player2.charId;
+    } else {
+        playerSelections.player2 = null;
+    }
+    
+    updateSelectionStatus();
 }
 
 // Lógica interna de seleção (reutilizada)
@@ -137,6 +200,23 @@ function selectCharacterLogic(playerNum, charId) {
     
     playerSelections[playerKey] = charId;
     gameState.selectCharacter(playerNum, charId);
+    
+    // Notificação visual
+    audioManager.playSound('sfx_click');
+    const charName = CHARACTERS[charId].name;
+    showNotification(`Jogador ${playerNum} selecionou ${charName}`, "success");
+    
+    updateSelectionStatus();
+}
+
+// Chamado quando o outro jogador desfaz a seleção
+function handleRemoteUndo(playerNum) {
+    const playerKey = `player${playerNum}`;
+    playerSelections[playerKey] = null;
+    
+    if (playerNum === 1) gameState.player1 = null;
+    else gameState.player2 = null;
+    
     updateSelectionStatus();
 }
 
@@ -146,6 +226,7 @@ function handleRemoteDecisionClick(decisionIndex) {
 }
 
 function confirmCharacters() {
+    audioManager.playSound('sfx_click');
     hideScreen('character-screen');
     showScreen('game-screen');
     
@@ -166,6 +247,7 @@ function confirmCharacters() {
     
     // Carrega a primeira cena
     loadScene(0);
+    audioManager.playMusic('bg_music_game'); // Troca para a música do jogo
 }
 
 function loadScene(sceneIndex) {
@@ -195,20 +277,41 @@ function loadScene(sceneIndex) {
         decisionContainer.innerHTML = `
             <h3 class="decision-title">${scene.decisionTitle || 'O que vocês fazem?'}</h3>
             <div class="decision-options">
-                ${scene.decisions.map((decision, index) => renderDecision(decision, index)).join('')}
+                ${scene.decisions.map((decision, index) => {
+                    // Verifica pré-requisitos
+                    if (decision.requires) {
+                        if (decision.requires.bond && gameState.bond < decision.requires.bond) {
+                            return ''; // Retorna string vazia se não atender ao requisito
+                        }
+                        // Futuro: adicionar mais requisitos
+                    }
+                    // O `index` aqui é o original, que será passado para handleDecision
+                    return renderDecision(decision, index);
+                }).join('')}
             </div>
         `;
     }
     
     gameState.log(`📖 ${scene.number}: ${scene.title}`);
+    audioManager.playSound('sfx_notification');
 }
 
 function renderDecision(decision, index) {
+    // Mapa de verbos para ajudar iniciantes a entenderem o atributo
+    const attrVerbs = {
+        ferro: "Forçar / Resistir",
+        fogo: "Agir Rápido / Combater",
+        sombra: "Esgueirar / Enganar",
+        engenho: "Perceber / Sobreviver",
+        coracao: "Convencer / Suportar"
+    };
+
     return `
         <div class="decision-card" onclick="handleDecision(${index})">
-            <h4>${decision.icon || '📍'} ${decision.title}</h4>
+            <h4 class="decision-card-title">${decision.icon || '📍'} ${decision.title}</h4>
             <p>${decision.description}</p>
-            ${decision.roll ? `<div class="roll-info">Rolagem: ${decision.roll}</div>` : ''}
+            ${decision.roll ? `<div class="decision-roll-req">🎲 ${decision.roll}</div>` : ''}
+            ${decision.rollInfo ? `<div style="font-size: 0.8rem; color: #8b9bb4; margin-bottom: 10px;"><em>Teste de ${attrVerbs[decision.rollInfo.attribute] || decision.rollInfo.attribute}</em></div>` : ''}
             ${decision.outcomes ? `<div class="outcomes">${renderOutcomes(decision.outcomes)}</div>` : ''}
         </div>
     `;
@@ -221,7 +324,7 @@ function renderOutcomes(outcomes) {
         </div>
         ${outcomes.partial ? `
         <div class="outcome partial">
-            <strong>🌓 Parcial:</strong> ${outcomes.partial}
+            <strong>🌓 Parcial (Sucesso com Custo):</strong> ${outcomes.partial}
         </div>` : ''}
         <div class="outcome fail">
             <strong>❌ Falha:</strong> ${outcomes.fail}
@@ -245,6 +348,7 @@ function handleDecision(decisionIndex, isRemote = false) {
     if (!decision) return;
     
     // Desativa todos os botões de decisão para evitar cliques duplos
+    audioManager.playSound('sfx_click');
     const decisionCards = document.querySelectorAll('.decision-card');
     decisionCards.forEach(card => {
         card.style.pointerEvents = 'none';
@@ -277,12 +381,17 @@ function handleDecision(decisionIndex, isRemote = false) {
 function applyDecisionResult(decision, result) {
     const outcome = decision.outcomes[result];
     
+    if (result === 'success') audioManager.playSound('sfx_success');
+    else if (result === 'partial') audioManager.playSound('sfx_partial');
+    else if (result === 'fail') audioManager.playSound('sfx_fail');
+    else audioManager.playSound('sfx_notification');
+
     if (!outcome) {
         console.error('Outcome não encontrado para:', result);
         return;
     }
     
-    gameState.log(`📜 RESULTADO: ${outcome}`);
+    gameState.log(`📜 RESULTADO: ${outcome}`, 'result');
     
     // Adicionar ao diário
     const scene = SCENES[gameState.currentScene];
@@ -299,6 +408,8 @@ function applyDecisionResult(decision, result) {
         if (effects.health) {
             Object.keys(effects.health).forEach(player => {
                 const playerNum = parseInt(player);
+                if (effects.health[player] < 0) audioManager.playSound('sfx_damage');
+                else audioManager.playSound('sfx_heal');
                 gameState.updateHealth(playerNum, effects.health[player]);
                 showFloatingDamage(playerNum, effects.health[player], 'health');
             });
@@ -307,6 +418,8 @@ function applyDecisionResult(decision, result) {
         if (effects.spirit) {
             Object.keys(effects.spirit).forEach(player => {
                 const playerNum = parseInt(player);
+                if (effects.spirit[player] < 0) audioManager.playSound('sfx_damage');
+                else audioManager.playSound('sfx_heal');
                 gameState.updateSpirit(playerNum, effects.spirit[player]);
                 showFloatingDamage(playerNum, effects.spirit[player], 'spirit');
             });
@@ -314,6 +427,7 @@ function applyDecisionResult(decision, result) {
         
         if (effects.supplies) {
             Object.keys(effects.supplies).forEach(player => {
+                if (effects.supplies[player] < 0) audioManager.playSound('sfx_damage');
                 const playerNum = parseInt(player);
                 gameState.updateSupplies(playerNum, effects.supplies[player]);
                 showFloatingDamage(playerNum, effects.supplies[player], 'supplies');
@@ -321,7 +435,11 @@ function applyDecisionResult(decision, result) {
         }
 
         if (effects.addItem) {
-            gameState.addItem(effects.addItem);
+            // Garante que addItem sempre receba um array para consistência
+            const itemsToAdd = Array.isArray(effects.addItem) ? effects.addItem : [effects.addItem];
+            itemsToAdd.forEach(item => gameState.addItem(item));
+            audioManager.playSound('sfx_notification');
+
         }
 
         if (effects.removeItem) {
@@ -330,6 +448,7 @@ function applyDecisionResult(decision, result) {
 
         if (effects.achievement) {
             gameState.unlockAchievement(effects.achievement);
+            audioManager.playSound('sfx_notification');
         }
 
         if (effects.bond) {
@@ -340,15 +459,16 @@ function applyDecisionResult(decision, result) {
     // Verifica Game Over (Ambos com Saúde 0)
     if (gameState.player1 && gameState.player2 && 
         gameState.player1.status.health <= 0 && 
+        gameState.player1.status.spirit <= 0 && // Adicionado para game over por espírito
         gameState.player2.status.health <= 0) {
         setTimeout(showGameOver, 1500);
         return;
     }
     
-    // Avança para próxima cena após 3 segundos (tempo para ler o log)
+    // Avança para próxima cena após 2 segundos (Melhoria de ritmo: era 3s)
     setTimeout(() => {
         advanceToNextScene();
-    }, 3000);
+    }, 2000);
 }
 
 // Sistema de Feedback Visual (Floating Text)
@@ -388,12 +508,47 @@ function showFloatingText(text, x, y, color) {
     setTimeout(() => floatEl.remove(), 1500);
 }
 
+// Sistema de Notificações Gerais (Toasts)
+function showNotification(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '❌';
+    if (type === 'warning') icon = '⚠️';
+
+    toast.innerHTML = `<span>${icon}</span> ${message}`;
+    
+    container.appendChild(toast);
+
+    // Remove após 3 segundos
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function updateRoomStatusUI(connected) {
+    audioManager.playSound('sfx_notification');
+    const el = document.getElementById('room-status-indicator');
+    if (!el) return;
+    
+    el.classList.remove('hidden');
+    el.classList.toggle('active', connected);
+    el.textContent = connected ? "👥 Sala: 2 Jogadores (Conectado)" : "👤 Sala: Aguardando Jogador 2...";
+}
+
 function startMission2() {
     gameState.progress = 0;
     gameState.currentMission = 2;
     gameState.resetSpecialAbilities();
     gameState.updateProgressDisplay();
-    gameState.log("🌊 INÍCIO DA MISSÃO 2: O Chamado do Lago Profundo");
+    gameState.log("🌊 INÍCIO DA MISSÃO 2: O Chamado do Lago Profundo", 'system');
+    audioManager.playSound('sfx_notification');
     alert("Missão 1 Concluída! O progresso foi resetado para a nova jornada.");
 }
 
@@ -409,7 +564,8 @@ function restartCurrentScene() {
     gameState.updateSpirit(1, 5);
     gameState.updateSpirit(2, 5);
     
-    gameState.log("🔄 O destino oferece uma segunda chance...");
+    gameState.log("🔄 O destino oferece uma segunda chance...", 'system');
+    audioManager.playSound('sfx_notification');
     
     hideScreen('game-over-screen');
     showScreen('game-screen');
@@ -422,6 +578,7 @@ function advanceToNextScene() {
     const overlay = document.getElementById('transition-overlay');
     
     // 1. Escurece a tela
+    audioManager.playSound('sfx_notification'); // Som de transição
     if (overlay) overlay.classList.add('active');
     
     // 2. Aguarda a animação (1 segundo)
@@ -455,6 +612,7 @@ function showEnding() {
 }
 
 function closeInventory() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('inventory-modal');
     if (modal) modal.classList.remove('active');
 }
@@ -467,6 +625,7 @@ function showInventory() {
     const supplies2 = document.getElementById('inv-supplies-2');
     
     if (!modal) return;
+    audioManager.playSound('sfx_click');
     
     // Atualiza visualização de suprimentos
     if (gameState.player1) supplies1.textContent = `${gameState.player1.status.supplies}/${gameState.player1.status.maxSupplies}`;
@@ -477,11 +636,12 @@ function showInventory() {
     const items2 = gameState.inventory.filter(i => i.owner === 2);
 
     const renderItem = (item, owner) => {
-        // Verifica se posso trocar (sou o dono OU sou o host jogando localmente)
-        // myPlayerId vem do multiplayer.js (1=Host, 2=Client, 0=Local/Offline)
+        // Verifica se posso trocar/usar (sou o dono OU sou o host jogando localmente)
         const canTrade = myPlayerId === 0 || myPlayerId === owner;
+        const canUse = (myPlayerId === 0 || myPlayerId === owner) && item.use;
         const targetOwner = owner === 1 ? 2 : 1;
         
+        let buttons = '';
         return `
             <li>
                 <span>✨ ${item.name}</span>
@@ -489,7 +649,8 @@ function showInventory() {
             </li>
         `;
     };
-
+    // Renderiza os itens com botões de ação
+    // ... (código existente)
     list1.innerHTML = items1.length ? items1.map(i => renderItem(i, 1)).join('') : '<li class="empty-inv">Vazio</li>';
     list2.innerHTML = items2.length ? items2.map(i => renderItem(i, 2)).join('') : '<li class="empty-inv">Vazio</li>';
     
@@ -498,6 +659,7 @@ function showInventory() {
 
 function tradeItemAction(itemId, targetOwner) {
     gameState.transferItem(itemId, targetOwner);
+    audioManager.playSound('sfx_click');
     
     // Sincroniza se estiver online
     if (typeof syncGameState === 'function') {
@@ -508,7 +670,52 @@ function tradeItemAction(itemId, targetOwner) {
     showInventory();
 }
 
+function useItemAction(itemId) {
+    audioManager.playSound('sfx_click');
+    const itemIndex = gameState.inventory.findIndex(i => i.id === itemId);
+    if (itemIndex === -1) return;
+
+    const item = gameState.inventory[itemIndex];
+    const playerNum = item.owner;
+    const player = gameState.getPlayer(playerNum);
+
+    if (item.use) {
+        const { effect, amount, log } = item.use;
+        gameState.log(log || `🔧 ${player.name} usou ${item.name}!`, 'item_use');
+
+        if (effect === 'health') {
+            gameState.updateHealth(playerNum, amount);
+            showFloatingDamage(playerNum, amount, 'health');
+        }
+        // Futuro: Adicionar outros efeitos como 'spirit', 'supplies', etc.
+    }
+
+    if (item.consumable) {
+        gameState.inventory.splice(itemIndex, 1);
+    }
+
+    if (typeof syncGameState === 'function') {
+        syncGameState();
+    }
+    
+    showInventory(); // Atualiza a UI do inventário
+}
+
+function rollOracle() {
+    audioManager.playSound('sfx_click');
+    const outcomes = ["Sim, e...", "Sim.", "Sim, mas...", "Não, mas...", "Não.", "Não, e..."];
+    const result = outcomes[Math.floor(Math.random() * outcomes.length)];
+    const logMessage = `🔮 Oráculo responde: <strong>${result}</strong>`;    
+    
+    gameState.log(logMessage, 'oracle');
+
+    if (typeof sendOracleResult === 'function') {
+        sendOracleResult(logMessage, 'oracle');
+    }
+}
+
 function showRestModal() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('rest-modal');
     const container = modal.querySelector('.rest-options');
     
@@ -549,11 +756,13 @@ function showRestModal() {
 }
 
 function closeRestModal() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('rest-modal');
     if (modal) modal.classList.remove('active');
 }
 
 function performRest(playerNum, type) {
+    audioManager.playSound('sfx_heal');
     const player = gameState.getPlayer(playerNum);
     
     if (player.status.supplies <= 0) return;
@@ -562,16 +771,17 @@ function performRest(playerNum, type) {
     
     if (type === 'health') {
         gameState.updateHealth(playerNum, 2);
-        gameState.log(`⛺ ${player.name} descansou e tratou os ferimentos.`);
+        gameState.log(`⛺ ${player.name} descansou e tratou os ferimentos.`, 'info');
     } else {
         gameState.updateSpirit(playerNum, 2);
-        gameState.log(`⛺ ${player.name} descansou e recuperou o ânimo.`);
+        gameState.log(`⛺ ${player.name} descansou e recuperou o ânimo.`, 'info');
     }
     
     showRestModal(); // Atualiza a UI
 }
 
 function showAchievements() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('achievements-modal');
     const grid = document.getElementById('achievements-grid');
     
@@ -600,11 +810,13 @@ function showAchievements() {
 }
 
 function closeAchievements() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('achievements-modal');
     if (modal) modal.classList.remove('active');
 }
 
 function showJournal() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('journal-modal');
     const list = document.getElementById('journal-entries');
     
@@ -629,6 +841,7 @@ function showJournal() {
 }
 
 function closeJournal() {
+    audioManager.playSound('sfx_click');
     const modal = document.getElementById('journal-modal');
     if (modal) modal.classList.remove('active');
 }
@@ -643,7 +856,33 @@ function hideConnectionLostModal() {
     if (modal) modal.classList.remove('active');
 }
 
+function handleChatKey(event) {
+    if (event.key === 'Enter') {
+        sendChatMessage();
+    }
+}
+
+function sendChatMessage() {
+    audioManager.playSound('sfx_click');
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    // Futuro: Adicionar comandos como /rolar
+    const playerName = myPlayerId === 1 ? gameState.player1.name : gameState.player2.name;
+    const logMessage = `<strong>${playerName}:</strong> ${message}`;
+    
+    gameState.log(logMessage, 'chat');
+
+    if (typeof sendChat === 'function') {
+        sendChat(logMessage, 'chat');
+    }
+    
+    input.value = '';
+}
+
 function checkSaveGame() {
+    audioManager.playMusic('bg_music_start');
     if (localStorage.getItem('terrasDeFerroSave')) {
         const btnContinue = document.getElementById('btn-continue');
         if (btnContinue) btnContinue.style.display = 'inline-block';
@@ -651,7 +890,9 @@ function checkSaveGame() {
 }
 
 function continueGame() {
+    audioManager.playSound('sfx_click');
     if (gameState.load()) {
+        stopTitleSparks(); // Otimização
         hideScreen('start-screen');
         showScreen('game-screen');
         
@@ -661,26 +902,34 @@ function continueGame() {
         
         // Carrega a cena atual
         loadScene(gameState.currentScene);
+        audioManager.playMusic('bg_music_game');
         
-        gameState.log("🔄 Jogo carregado com sucesso.");
+        gameState.log("🔄 Jogo carregado com sucesso.", 'system');
     } else {
         alert("Erro ao carregar o jogo salvo.");
     }
 }
 
 function useSpecialAbility() {
+    audioManager.playSound('sfx_click');
     gameState.performSpecialAbility();
 }
+
+let sparksInterval = null; // Variável para controlar o loop
 
 function initTitleSparks() {
     const container = document.querySelector('.start-container');
     const title = document.querySelector('.main-title');
     
     if (!container || !title) return;
+    
+    // Limpa intervalo anterior se existir
+    if (sparksInterval) clearInterval(sparksInterval);
 
-    setInterval(() => {
+    sparksInterval = setInterval(() => {
         // Verifica se a tela inicial está visível para não gastar processamento à toa
         const startScreen = document.getElementById('start-screen');
+        // Otimização extra: Se não tiver a classe active, nem calcula nada
         if (!startScreen || !startScreen.classList.contains('active')) return;
 
         const spark = document.createElement('div');
@@ -720,9 +969,64 @@ function initTitleSparks() {
     }, 80); // Cria uma faísca a cada 80ms
 }
 
+function stopTitleSparks() {
+    if (sparksInterval) {
+        clearInterval(sparksInterval);
+        sparksInterval = null;
+    }
+}
+
 // Inicialização quando a página carregar
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🎮 Terras de Ferro carregado!');
     checkSaveGame();
     initTitleSparks();
+    gameState.log("Bem-vindo às Terras de Ferro! Para começar, crie ou entre em uma sala.", 'system');
 });
+
+// --- Funções de Level Up ---
+function showLevelUpModal() {
+    const modal = document.getElementById('level-up-modal');
+    const optionsContainer = document.getElementById('level-up-options');
+    if (!modal || !optionsContainer) return;
+
+    optionsContainer.innerHTML = `
+        <p>Escolha um atributo para aumentar em 1:</p>
+        <button class="btn-primary" onclick="applyLevelUp('fogo')">🔥 Fogo</button>
+        <button class="btn-primary" onclick="applyLevelUp('sombra')">🌑 Sombra</button>
+        <button class="btn-primary" onclick="applyLevelUp('engenho')">🔧 Engenho</button>
+        <button class="btn-primary" onclick="applyLevelUp('ferro')">⚔️ Ferro</button>
+        <button class="btn-primary" onclick="applyLevelUp('coracao')">❤️ Coração</button>
+    `;
+    modal.classList.add('active');
+}
+
+function closeLevelUpModal() {
+    const modal = document.getElementById('level-up-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+function applyLevelUp(attribute) {
+    audioManager.playSound('sfx_level_up');
+    // Lógica para aplicar o level up no personagem ativo (ou ambos)
+    // Por simplicidade, vamos aplicar ao player 1 por enquanto
+    if (gameState.player1) {
+        gameState.player1.stats[attribute]++;
+        gameState.log(`⭐ ${gameState.player1.name} aumentou ${attribute} para ${gameState.player1.stats[attribute]}!`, 'info');
+    }
+    // Se for multiplayer, precisaria enviar essa atualização para o outro jogador
+    // e ter uma lógica para qual jogador está "subindo de nível"
+    gameState.levelUp(); // Finaliza o processo de level up no GameState
+    closeLevelUpModal();
+    gameState.updateCharacterDisplay();
+}
+
+// --- Funções de Áudio ---
+function toggleAudio() {
+    const isMuted = audioManager.toggleMute();
+    const btn = document.getElementById('btn-mute');
+    if (btn) {
+        btn.textContent = isMuted ? "🔇 Som: Off" : "🔊 Som: On";
+        btn.style.opacity = isMuted ? "0.6" : "1";
+    }
+}

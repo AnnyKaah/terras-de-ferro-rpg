@@ -28,6 +28,14 @@ function showDiceRoller(playerNum = null, attribute = 'ferro', bonus = 0, callba
         char2Name.textContent = `${gameState.player2.icon} ${gameState.player2.name}`;
     }
 
+    // Adiciona dica para iniciantes
+    const diceContext = document.getElementById('dice-context');
+    if (diceContext) {
+        const attrName = attribute.charAt(0).toUpperCase() + attribute.slice(1);
+        const bonusText = bonus > 0 ? ` (+${bonus} bônus)` : '';
+        diceContext.innerHTML = `Teste de <strong>${attrName}</strong>${bonusText}.<br><span style="font-size: 0.85rem; color: #aaa;">Role o dado e tente superar os dois Desafios.</span>`;
+    }
+
     // Configura botão de Laço
     const btnBond = document.getElementById('btn-use-bond');
     if (btnBond) {
@@ -116,7 +124,7 @@ function rollDice(playerNum, remoteData = null) {
         resultText = '✅ Sucesso Total!';
     } else if (beat1 || beat2) {
         result = 'partial';
-        resultText = '🌓 Sucesso Parcial';
+        resultText = '🌓 Sucesso Parcial (Com Custo)';
     } else {
         result = 'fail';
         resultText = '❌ Falha';
@@ -128,6 +136,7 @@ function rollDice(playerNum, remoteData = null) {
     // Exibe o resultado
     displayDiceResult(d6, attrValue, total, d10_1, d10_2, result, resultText);
     
+    audioManager.playSound('sfx_dice_roll');
     // Se fui eu que rolei, envia para o outro jogador ver a mesma coisa
     if (!remoteData && typeof sendDiceRoll === 'function') {
         const rollData = { d6, d10_1, d10_2, result, total, attrValue };
@@ -135,7 +144,7 @@ function rollDice(playerNum, remoteData = null) {
     }
 
     // Log do resultado
-    gameState.log(`🎲 ${player.name} rolou: ${resultText} (${total} vs ${d10_1}/${d10_2})`);
+    gameState.log(`🎲 ${player.name} rolou: ${resultText} (${total} vs ${d10_1}/${d10_2})`, 'result');
     
     // Callback se existir
     if (currentRollContext.callback) {
