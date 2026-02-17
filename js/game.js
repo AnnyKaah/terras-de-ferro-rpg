@@ -540,3 +540,28 @@ function sendChatMessage() {
     }
     input.value = '';
 }
+// Adicione em js/game.js
+function exportSave() {
+    const dataStr = localStorage.getItem('terrasDeFerroSave');
+    if(!dataStr) return alert("Nenhum save encontrado!");
+    
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "terras_de_ferro_save.json";
+    a.click();
+}
+
+function importSave(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        localStorage.setItem('terrasDeFerroSave', e.target.result);
+        alert("Save carregado com sucesso! Clique em Continuar Aventura.");
+        checkSaveGame();
+    };
+    reader.readAsText(file);
+}
