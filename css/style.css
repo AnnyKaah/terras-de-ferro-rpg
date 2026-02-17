@@ -80,118 +80,163 @@ body {
     align-items: center;
 }
 
-/* Start Screen */
+/* =========================================
+   START SCREEN (HERO PAGE ÉPICA)
+   ========================================= */
 #start-screen {
     position: relative;
     overflow: hidden;
+    background-color: #050505;
 }
 
+/* Fundo profundo com vinheta escura */
 .hero-bg {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 50% 50%, #2a2a40 0%, #0f0f1a 100%);
+    background: radial-gradient(circle at 50% 40%, #221520 0%, #0f0f1a 50%, #050505 100%);
     z-index: -1;
 }
 
+/* Efeito de Névoa Lenta */
 .hero-bg::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    /* Adiciona uma leve textura pontilhada no fundo */
-    background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-    background-size: 30px 30px;
-    opacity: 0.2;
-    animation: moveBackground 20s linear infinite;
-}
-@keyframes moveBackground {
-    0% { transform: translateY(0); }
-    100% { transform: translateY(30px); }
-}
-@keyframes pulseBg {
-    0% { opacity: 0.2; transform: scale(1); }
-    100% { opacity: 0.4; transform: scale(1.05); }
+    width: 200%;
+    height: 200%;
+    top: -50%;
+    left: -50%;
+    background: 
+        radial-gradient(circle at 50% 50%, rgba(233, 69, 96, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(76, 201, 240, 0.03) 0%, transparent 40%);
+    animation: driftFog 20s infinite linear alternate;
+    pointer-events: none;
 }
 
+/* Efeito de Brasas Flutuantes (Fogo de Forja) */
+.hero-bg::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        radial-gradient(2px 2px at 20px 30px, #ff6b81, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 40px 70px, #e94560, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 50px 160px, #ffb8b8, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 90px 40px, #ff6b81, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 130px 80px, #e94560, rgba(0,0,0,0)),
+        radial-gradient(2px 2px at 160px 120px, #ffb8b8, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    animation: floatEmbers 15s infinite linear;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Container de Vidro Negro (Dark Glassmorphism) */
 .start-container {
     text-align: center;
     max-width: 700px;
-    padding: 50px;
-    background: rgba(11, 12, 16, 0.6);
-    border: 1px solid rgba(102, 252, 241, 0.1);
-    border-radius: 20px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.7), inset 0 0 20px rgba(0,0,0,0.5);
-    backdrop-filter: blur(15px);
-    animation: fadeIn 1s ease, float 6s ease-in-out infinite;
+    padding: 60px 50px;
+    background: linear-gradient(145deg, rgba(20, 22, 28, 0.8), rgba(10, 12, 16, 0.9));
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.15); /* Reflexo de luz no topo */
+    border-radius: 24px;
+    box-shadow: 
+        0 30px 60px rgba(0,0,0,0.8), 
+        inset 0 1px 0 rgba(255,255,255,0.1),
+        0 0 40px rgba(233, 69, 96, 0.1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    animation: fadeIn 1.2s ease-out, floatContainer 8s ease-in-out infinite;
     position: relative;
+    z-index: 10;
 }
 
-/* Decorative corners */
+/* Detalhes de metal nos cantos do container */
 .start-container::before, .start-container::after {
     content: '';
     position: absolute;
-    width: 30px;
-    height: 30px;
-    border: 2px solid var(--accent);
-    transition: all 0.3s ease;
-    opacity: 0.7;
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--accent);
+    opacity: 0.8;
+    box-shadow: 0 0 10px rgba(233, 69, 96, 0.5), inset 0 0 10px rgba(233, 69, 96, 0.5);
 }
 
 .start-container::before {
-    top: -2px;
-    left: -2px;
+    top: -3px;
+    left: -3px;
     border-right: none;
     border-bottom: none;
-    border-radius: 20px 0 0 0;
+    border-radius: 24px 0 0 0;
 }
 
 .start-container::after {
-    bottom: -2px;
-    right: -2px;
+    bottom: -3px;
+    right: -3px;
     border-left: none;
     border-top: none;
-    border-radius: 0 0 20px 0;
+    border-radius: 0 0 24px 0;
 }
 
+/* Ícone de Espadas Brilhantes */
 .title-glow {
-    font-size: 100px;
+    font-size: 80px;
     line-height: 1;
-    margin-bottom: 10px;
-    animation: glow 3s ease-in-out infinite;
-    filter: drop-shadow(0 0 20px rgba(233, 69, 96, 0.5));
+    margin-bottom: 20px;
+    display: inline-block;
+    filter: drop-shadow(0 0 25px rgba(233, 69, 96, 0.8));
+    animation: forgePulse 3s ease-in-out infinite;
 }
 
-@keyframes glow {
-    0%, 100% { text-shadow: 0 0 20px var(--accent), 0 0 40px var(--accent); transform: scale(1); }
-    50% { text-shadow: 0 0 40px var(--accent), 0 0 80px var(--accent); transform: scale(1.05); }
-}
-
+/* Título em Aço Forjado */
 .main-title {
     font-family: 'Cinzel', serif;
-    font-size: 4.5rem;
+    font-size: 5rem;
     font-weight: 700;
     margin-bottom: 15px;
-    /* Efeito de metal polido */
-    background: linear-gradient(to bottom, #ffffff 0%, #b0b0b0 45%, #606060 50%, #e0e0e0 100%);
+    /* Gradiente que simula metal reflexivo */
+    background: linear-gradient(to bottom, #ffffff 0%, #d4d4d4 30%, #808080 50%, #b3b3b3 70%, #ffffff 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.8));
-    letter-spacing: 2px;
+    text-shadow: 
+        0px 5px 15px rgba(0, 0, 0, 0.8),
+        0px 10px 30px rgba(0, 0, 0, 0.5);
+    letter-spacing: 4px;
+    text-transform: uppercase;
 }
 
 .subtitle {
     font-size: 1.2rem;
-    color: var(--text-muted);
-    margin-bottom: 50px;
-    font-weight: 300;
-    letter-spacing: 1px;
+    color: #a0aabf;
+    margin-bottom: 40px;
+    font-weight: 400;
+    letter-spacing: 2px;
     text-transform: uppercase;
+    position: relative;
+    display: inline-block;
 }
 
-/* Start Screen Buttons */
+/* Linhas decorativas ao lado do subtítulo */
+.subtitle::before, .subtitle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 40px;
+    height: 1px;
+    background: rgba(255,255,255,0.2);
+}
+
+.subtitle::before { right: 100%; margin-right: 15px; }
+.subtitle::after { left: 100%; margin-left: 15px; }
+
+/* Botões da Hero Page ajustados para caber no novo estilo */
 .start-container .btn-primary, 
 .start-container .btn-secondary {
     width: 100%;
@@ -200,30 +245,49 @@ body {
     display: block;
     padding: 18px;
     font-size: 1.1rem;
-    letter-spacing: 1px;
+    letter-spacing: 2px;
     text-transform: uppercase;
     position: relative;
     overflow: hidden;
+    border-radius: 8px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
-.start-container .btn-primary::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    transition: 0.5s;
+.start-container .btn-primary:hover,
+.start-container .btn-secondary:hover {
+    transform: scale(1.05);
 }
 
-.start-container .btn-primary:hover::after {
-    left: 100%;
+/* --- ANIMAÇÕES DA HERO PAGE --- */
+
+@keyframes driftFog {
+    0% { transform: rotate(0deg) translate(0, 0) scale(1); }
+    100% { transform: rotate(5deg) translate(-50px, -50px) scale(1.1); }
 }
 
-@keyframes float {
+@keyframes floatEmbers {
+    0% { transform: translateY(0); opacity: 0; }
+    10% { opacity: 0.8; }
+    90% { opacity: 0.8; }
+    100% { transform: translateY(-100vh); opacity: 0; }
+}
+
+@keyframes floatContainer {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+    50% { transform: translateY(-12px); }
+}
+
+@keyframes forgePulse {
+    0%, 100% { filter: drop-shadow(0 0 15px rgba(233, 69, 96, 0.5)); transform: scale(1); }
+    50% { filter: drop-shadow(0 0 35px rgba(233, 69, 96, 0.9)); transform: scale(1.05); }
+}
+
+/* Media Query para telas menores */
+@media (max-width: 768px) {
+    .main-title { font-size: 3.5rem; }
+    .subtitle { font-size: 1rem; }
+    .start-container { padding: 40px 20px; margin: 20px; }
+    .subtitle::before, .subtitle::after { display: none; }
 }
 
 /* Buttons */
