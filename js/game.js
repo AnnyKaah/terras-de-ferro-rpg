@@ -513,3 +513,30 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('🎮 Terras de Ferro carregado!');
     checkSaveGame();
 });
+function handleChatKey(event) {
+    if (event.key === 'Enter') sendChatMessage();
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    // Detecta se é um comando de rolagem livre (ex: /rolar ferro)
+    if (msg.startsWith('/rolar')) {
+        const parts = msg.split(' ');
+        const attribute = parts[1] ? parts[1].toLowerCase() : 'ferro';
+        
+        // Pergunta de quem é a rolagem (1 = Lyra, 2 = Daren)
+        const playerNum = confirm("Foi a Lyra (OK) ou o Daren (Cancelar)?") ? 1 : 2;
+        
+        gameState.log(`🎲 <span class="log-command">${msg}</span>`);
+        showDiceRoller(playerNum, attribute, 0, (result) => {
+            gameState.log(`Rolagem livre finalizada: ${result}`);
+        });
+    } else {
+        // Mensagem normal
+        gameState.log(`💬 <span class="log-message">${msg}</span>`);
+    }
+    input.value = '';
+}
