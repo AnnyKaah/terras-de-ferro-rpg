@@ -49,13 +49,13 @@ function startGame() {
 
 function showRules() {
     hideScreen('start-screen');
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     showScreen('rules-screen');
 }
 
 function hideRules() {
     hideScreen('rules-screen');
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     showScreen('start-screen');
 }
 
@@ -87,7 +87,7 @@ function chooseCharacter(charId) {
     if (myPlayerId === 0) {
         // Modo Offline / Teste: Assume Jogador 1 se não houver conexão
         myPlayerId = 1;
-        audioManager.playSound('sfx_notification');
+        // audioManager.playSound('sfx_notification');
         showNotification("Modo Offline: Você é o Jogador 1", "info");
     }
 
@@ -181,7 +181,7 @@ function updateSelectionStatus() {
 
     // Mostra botão de confirmar se ambos escolheram
     if (playerSelections.player1 && playerSelections.player2) {
-        audioManager.playSound('sfx_notification');
+        // audioManager.playSound('sfx_notification');
         confirmBtn.textContent = "Começar Aventura!";
         confirmBtn.disabled = false;
         confirmBtn.style.display = 'block';
@@ -227,7 +227,7 @@ function selectCharacterLogic(playerNum, charId) {
     gameState.selectCharacter(playerNum, charId);
     
     // Notificação visual
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const charName = CHARACTERS[charId].name;
     showNotification(`Jogador ${playerNum} selecionou ${charName}`, "success");
     
@@ -251,7 +251,7 @@ function handleRemoteDecisionClick(decisionIndex) {
 }
 
 function confirmCharacters() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     hideScreen('character-screen');
     showScreen('game-screen');
     
@@ -272,7 +272,7 @@ function confirmCharacters() {
     
     // Carrega a primeira cena
     loadScene(0);
-    audioManager.playMusic('bg_music_game'); // Troca para a música do jogo
+    // audioManager.playMusic('bg_music_game'); // Troca para a música do jogo
 }
 
 function loadScene(sceneIndex) {
@@ -318,7 +318,7 @@ function loadScene(sceneIndex) {
     }
     
     gameState.log(`📖 ${scene.number}: ${scene.title}`);
-    audioManager.playSound('sfx_notification');
+    // audioManager.playSound('sfx_notification');
     updateTurnIndicators(scene);
 }
 
@@ -407,7 +407,7 @@ function handleDecision(decisionIndex, isRemote = false) {
     if (!decision) return;
     
     // Desativa todos os botões de decisão para evitar cliques duplos
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const decisionCards = document.querySelectorAll('.decision-card');
     decisionCards.forEach(card => {
         card.style.pointerEvents = 'none';
@@ -440,10 +440,10 @@ function handleDecision(decisionIndex, isRemote = false) {
 function applyDecisionResult(decision, result) {
     const outcome = decision.outcomes[result];
     
-    if (result === 'success') audioManager.playSound('sfx_success');
-    else if (result === 'partial') audioManager.playSound('sfx_partial');
-    else if (result === 'fail') audioManager.playSound('sfx_fail');
-    else audioManager.playSound('sfx_notification');
+    // if (result === 'success') audioManager.playSound('sfx_success');
+    // else if (result === 'partial') audioManager.playSound('sfx_partial');
+    // else if (result === 'fail') audioManager.playSound('sfx_fail');
+    // else audioManager.playSound('sfx_notification');
 
     if (!outcome) {
         console.error('Outcome não encontrado para:', result);
@@ -467,8 +467,8 @@ function applyDecisionResult(decision, result) {
         if (effects.health) {
             Object.keys(effects.health).forEach(player => {
                 const playerNum = parseInt(player);
-                if (effects.health[player] < 0) audioManager.playSound('sfx_damage');
-                else audioManager.playSound('sfx_heal');
+                // if (effects.health[player] < 0) audioManager.playSound('sfx_damage');
+                // else audioManager.playSound('sfx_heal');
                 gameState.updateHealth(playerNum, effects.health[player]);
                 showFloatingDamage(playerNum, effects.health[player], 'health');
             });
@@ -477,8 +477,8 @@ function applyDecisionResult(decision, result) {
         if (effects.spirit) {
             Object.keys(effects.spirit).forEach(player => {
                 const playerNum = parseInt(player);
-                if (effects.spirit[player] < 0) audioManager.playSound('sfx_damage');
-                else audioManager.playSound('sfx_heal');
+                // if (effects.spirit[player] < 0) audioManager.playSound('sfx_damage');
+                // else audioManager.playSound('sfx_heal');
                 gameState.updateSpirit(playerNum, effects.spirit[player]);
                 showFloatingDamage(playerNum, effects.spirit[player], 'spirit');
             });
@@ -486,7 +486,7 @@ function applyDecisionResult(decision, result) {
         
         if (effects.supplies) {
             Object.keys(effects.supplies).forEach(player => {
-                if (effects.supplies[player] < 0) audioManager.playSound('sfx_damage');
+                // if (effects.supplies[player] < 0) audioManager.playSound('sfx_damage');
                 const playerNum = parseInt(player);
                 gameState.updateSupplies(playerNum, effects.supplies[player]);
                 showFloatingDamage(playerNum, effects.supplies[player], 'supplies');
@@ -497,7 +497,7 @@ function applyDecisionResult(decision, result) {
             // Garante que addItem sempre receba um array para consistência
             const itemsToAdd = Array.isArray(effects.addItem) ? effects.addItem : [effects.addItem];
             itemsToAdd.forEach(item => gameState.addItem(item));
-            audioManager.playSound('sfx_notification');
+            // audioManager.playSound('sfx_notification');
 
         }
 
@@ -507,7 +507,7 @@ function applyDecisionResult(decision, result) {
 
         if (effects.achievement) {
             gameState.unlockAchievement(effects.achievement);
-            audioManager.playSound('sfx_notification');
+            // audioManager.playSound('sfx_notification');
         }
 
         if (effects.bond) {
@@ -592,7 +592,7 @@ function showNotification(message, type = 'info') {
 }
 
 function updateRoomStatusUI(connected) {
-    audioManager.playSound('sfx_notification');
+    // audioManager.playSound('sfx_notification');
     const el = document.getElementById('room-status-indicator');
     if (!el) return;
     
@@ -607,7 +607,7 @@ function startMission2() {
     gameState.resetSpecialAbilities();
     gameState.updateProgressDisplay();
     gameState.log("🌊 INÍCIO DA MISSÃO 2: O Chamado do Lago Profundo", 'system');
-    audioManager.playSound('sfx_notification');
+    // audioManager.playSound('sfx_notification');
     alert("Missão 1 Concluída! O progresso foi resetado para a nova jornada.");
 }
 
@@ -624,7 +624,7 @@ function restartCurrentScene() {
     gameState.updateSpirit(2, 5);
     
     gameState.log("🔄 O destino oferece uma segunda chance...", 'system');
-    audioManager.playSound('sfx_notification');
+    // audioManager.playSound('sfx_notification');
     
     hideScreen('game-over-screen');
     showScreen('game-screen');
@@ -637,7 +637,7 @@ function advanceToNextScene() {
     const overlay = document.getElementById('transition-overlay');
     
     // 1. Escurece a tela
-    audioManager.playSound('sfx_notification'); // Som de transição
+    // audioManager.playSound('sfx_notification'); // Som de transição
     if (overlay) overlay.classList.add('active');
     
     // 2. Aguarda a animação (1 segundo)
@@ -671,7 +671,7 @@ function showEnding() {
 }
 
 function closeInventory() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('inventory-modal');
     if (modal) modal.classList.remove('active');
 }
@@ -684,7 +684,7 @@ function showInventory() {
     const supplies2 = document.getElementById('inv-supplies-2');
     
     if (!modal) return;
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     
     // Atualiza visualização de suprimentos
     if (gameState.player1) supplies1.textContent = `${gameState.player1.status.supplies}/${gameState.player1.status.maxSupplies}`;
@@ -718,7 +718,7 @@ function showInventory() {
 
 function tradeItemAction(itemId, targetOwner) {
     gameState.transferItem(itemId, targetOwner);
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     
     // Sincroniza se estiver online
     if (typeof syncGameState === 'function') {
@@ -730,7 +730,7 @@ function tradeItemAction(itemId, targetOwner) {
 }
 
 function useItemAction(itemId) {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const itemIndex = gameState.inventory.findIndex(i => i.id === itemId);
     if (itemIndex === -1) return;
 
@@ -761,7 +761,7 @@ function useItemAction(itemId) {
 }
 
 function rollOracle() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const outcomes = ["Sim, e...", "Sim.", "Sim, mas...", "Não, mas...", "Não.", "Não, e..."];
     const result = outcomes[Math.floor(Math.random() * outcomes.length)];
     const logMessage = `🔮 Oráculo responde: <strong>${result}</strong>`;    
@@ -774,7 +774,7 @@ function rollOracle() {
 }
 
 function showRestModal() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('rest-modal');
     const container = modal.querySelector('.rest-options');
     
@@ -815,13 +815,13 @@ function showRestModal() {
 }
 
 function closeRestModal() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('rest-modal');
     if (modal) modal.classList.remove('active');
 }
 
 function performRest(playerNum, type) {
-    audioManager.playSound('sfx_heal');
+    // audioManager.playSound('sfx_heal');
     const player = gameState.getPlayer(playerNum);
     
     if (player.status.supplies <= 0) return;
@@ -840,7 +840,7 @@ function performRest(playerNum, type) {
 }
 
 function showAchievements() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('achievements-modal');
     const grid = document.getElementById('achievements-grid');
     
@@ -869,13 +869,13 @@ function showAchievements() {
 }
 
 function closeAchievements() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('achievements-modal');
     if (modal) modal.classList.remove('active');
 }
 
 function showJournal() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('journal-modal');
     const list = document.getElementById('journal-entries');
     
@@ -900,7 +900,7 @@ function showJournal() {
 }
 
 function closeJournal() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const modal = document.getElementById('journal-modal');
     if (modal) modal.classList.remove('active');
 }
@@ -922,7 +922,7 @@ function handleChatKey(event) {
 }
 
 function sendChatMessage() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     const input = document.getElementById('chat-input');
     const message = input.value.trim();
     if (!message) return;
@@ -941,7 +941,7 @@ function sendChatMessage() {
 }
 
 function checkSaveGame() {
-    audioManager.playMusic('bg_music_start');
+    // audioManager.playMusic('bg_music_start');
     if (localStorage.getItem('terrasDeFerroSave')) {
         const btnContinue = document.getElementById('btn-continue');
         if (btnContinue) btnContinue.style.display = 'inline-block';
@@ -949,7 +949,7 @@ function checkSaveGame() {
 }
 
 function continueGame() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     if (gameState.load()) {
         stopTitleSparks(); // Otimização
         hideScreen('start-screen');
@@ -961,7 +961,7 @@ function continueGame() {
         
         // Carrega a cena atual
         loadScene(gameState.currentScene);
-        audioManager.playMusic('bg_music_game');
+        // audioManager.playMusic('bg_music_game');
         
         gameState.log("🔄 Jogo carregado com sucesso.", 'system');
     } else {
@@ -970,7 +970,7 @@ function continueGame() {
 }
 
 function useSpecialAbility() {
-    audioManager.playSound('sfx_click');
+    // audioManager.playSound('sfx_click');
     gameState.performSpecialAbility();
 }
 
