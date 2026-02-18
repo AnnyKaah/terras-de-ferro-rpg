@@ -1,1091 +1,876 @@
-// game.js - Lógica principal do jogo (Core Loop, UI, Orquestração)
+// js/game.js - Lógica Principal do Jogo
 
-var isSoloMode = false; // Controle do modo solo
+const game = {
+    mode: 'offline', // 'offline' ou 'online'
+    isHost: false,
+    currentPlayer: 1,
+    selectedChars: { p1: null, p2: null },
+    selectedAssets: { p1: null, p2: null },
+    // Novo estado de setup compartilhado
+    setupState: {
+        phase: 'CHAR_SELECT', // CHAR_SELECT, ASSET_SELECT, GAME
+        ready: { p1: false, p2: false }
+    },
 
-// Funções de Lobby
-function hostGame() {
-    // Inicia o multiplayer
-    initMultiplayer();
-    
-    // Avança para a tela de seleção imediatamente
-    startGame(true); // true = bypass save check para não travar o fluxo
-    
-    // Mostra o painel de ID na tela de personagens
-    document.getElementById('host-info').style.display = 'block';
-}
+    init() {
+        // Injeta helpers de UI se o objeto ui existir (para efeitos visuais e boss)
+        if (typeof ui !== 'undefined') {
+            ui.triggerDamageEffect = () => {
+                const app = document.getElementById('game-screen') || document.body;
+                app.classList.add('shake-effect');
+                setTimeout(() => app.classList.remove('shake-effect'), 500);
+            };
+            
+            ui.updateBossDisplay = () => {
+                this.updateBossUI();
+            };
+        }
 
-function startOfflineGame() {
-    isSoloMode = true;
-    showNotification("Modo Solo: Você controla ambos os personagens.", "info");
-    document.getElementById('host-info').style.display = 'none';
-    startGame();
-}
+        // Garante que a tela inicial seja mostrada ao carregar
+        ui.showScreen('start-screen');
+    },
 
-function joinGameUI() {
-    const input = document.getElementById('join-id-input');
-    const id = input.value.trim();
-    if (id) {
-        document.getElementById('btn-join').textContent = "Conectando...";
-        document.getElementById('btn-join').disabled = true;
-        audioManager.playSound('sfx_click');
-        joinRoom(id);
-    } else {
-        alert("Por favor, insira o ID da sala.");
-    }
-}
+    // ============================================
+    // MENU INICIAL
+    // ============================================
 
-function startGame() {
-    if (localStorage.getItem('terrasDeFerroSave')) {
-        if (!confirm("Existe um jogo salvo. Iniciar uma nova aventura apagará o progresso anterior. Deseja continuar?")) {
+    hostGame() {
+        this.mode = 'online';
+        this.isHost = true;
+        multiplayer.init();
+        ui.showScreen('character-screen');
+        this.renderCharacterCards();
+    },
+
+    joinGameUI() {
+        const id = document.getElementById('join-id-input').value.trim();
+        if (!id) {
+            this.notify('Digite um ID válido!', 'error');
             return;
         }
-        gameState.reset();
-        playerSelections = { player1: null, player2: null };
-    }
+        this.mode = 'online';
+        this.isHost = false;
+        multiplayer.join(id);
+        ui.showScreen('character-screen');
+        this.renderCharacterCards();
+    },
 
-    hideScreen('start-screen');
-    showScreen('character-screen');
-}
+    startOfflineGame() {
+        this.mode = 'offline';
+        ui.showScreen('character-screen');
+        this.renderCharacterCards();
+    },
 
-function showRules() {
-    hideScreen('start-screen');
-    // audioManager.playSound('sfx_click');
-    showScreen('rules-screen');
-}
+    // ============================================
+    // SELEÇÃO DE PERSONAGENS
+    // ============================================
 
-function hideRules() {
-    hideScreen('rules-screen');
-    // audioManager.playSound('sfx_click');
-    showScreen('start-screen');
-}
+    renderCharacterCards() {
+        const container = document.querySelector('.characters-grid');
+        container.innerHTML = Object.keys(CHARACTERS).map(id => {
+            const char = CHARACTERS[id];
+            
+            // Lógica de Estado Compartilhado
+            const myPlayerKey = `p${this.currentPlayer}`;
+            const otherPlayerKey = this.currentPlayer === 1 ? 'p2' : 'p1';
+            
+            let isLocked = false;
+            let lockedBy = "";
+            let btnText = "Selecionar";
+            let btnClass = "btn-select";
+            let isSelectedByMe = false;
 
-function hideScreen(screenId) {
-    const screen = document.getElementById(screenId);
-    if (screen) screen.classList.remove('active');
-}
+            if (this.mode === 'offline') {
+                // Modo Offline: Mostra status de P1 e P2
+                if (this.selectedChars.p1 === id) {
+                    btnClass += " active";
+                    btnText = "✅ Jogador 1";
+                } else if (this.selectedChars.p2 === id) {
+                    btnClass += " active";
+                    btnText = "✅ Jogador 2";
+                }
+            } else {
+                // Modo Online: Lógica de Estado Compartilhado
+                isSelectedByMe = this.selectedChars[myPlayerKey] === id;
+                const isSelectedByOther = this.selectedChars[otherPlayerKey] === id;
 
-function showScreen(screenId) {
-    const screen = document.getElementById(screenId);
-    if (screen) screen.classList.add('active');
-}
+                if (isSelectedByOther) {
+                    isLocked = true;
+                    lockedBy = `Bloqueado (${this.currentPlayer === 1 ? 'Jogador 2' : 'Jogador 1'})`;
+                    btnText = "⛔ Ocupado";
+                } else if (isSelectedByMe) {
+                    btnClass += " active";
+                    btnText = "✅ Selecionado";
+                }
+            }
+            
+            return `
+                <div class="char-card ${isSelectedByMe ? 'selected' : ''} ${isLocked ? 'locked' : ''}" data-char="${id}">
+                    <div class="char-avatar">
+                        <div class="char-avatar-circle">
+                            <img src="${char.avatar}" alt="${char.name}" onerror="this.style.display='none';this.parentNode.innerHTML='<span class=\\'char-icon\\'>${char.icon}</span>'">
+                        </div>
+                    </div>
+                    <div class="char-header">
+                        <h3>${char.name}</h3>
+                        <p class="char-role">${char.role}</p>
+                    </div>
+                    <div class="char-stats-row">
+                        ${Object.entries(char.stats).map(([stat, val]) => `
+                            <div class="stat-badge ${val === 3 ? 'highlight' : ''}" data-tooltip="${this.getStatDescription(stat)}">
+                                <span class="stat-icon">${this.getStatIcon(stat)}</span>
+                                <span class="stat-value">${val}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="char-special">${char.special}</div>
+                    <div class="char-actions">
+                        <button class="${btnClass}" 
+                                onclick="game.selectChar('${id}')" ${isLocked ? 'disabled' : ''}>
+                            ${btnText}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
 
-let playerSelections = { player1: null, player2: null };
+    getStatIcon(stat) {
+        const icons = {
+            fogo: '🔥',
+            sombra: '🌑',
+            ferro: '⚔️',
+            coracao: '❤️',
+            engenho: '🔧'
+        };
+        return icons[stat] || '⭐';
+    },
 
-// Função chamada quando EU clico em selecionar
-function chooseCharacter(charId) {
-    if (isSoloMode) {
-        // Lógica para Modo Solo: Preenche P1, depois P2
-        if (!playerSelections.player1) {
-            handleRemoteSelection(1, charId);
-        } else if (!playerSelections.player2 && playerSelections.player1 !== charId) {
-            handleRemoteSelection(2, charId);
-        }
-        updateSelectionStatus();
-        return;
-    }
+    getStatDescription(stat) {
+        const descriptions = {
+            fogo: 'Rapidez, agilidade e combate à distância.',
+            sombra: 'Furtividade, mentiras e astúcia.',
+            ferro: 'Força, agressividade e resistência.',
+            coracao: 'Coragem, lealdade e empatia.',
+            engenho: 'Percepção, sobrevivência e conhecimento.'
+        };
+        return descriptions[stat] || '';
+    },
 
-    if (myPlayerId === 0) {
-        // Modo Offline / Teste: Assume Jogador 1 se não houver conexão
-        myPlayerId = 1;
-        // audioManager.playSound('sfx_notification');
-        showNotification("Modo Offline: Você é o Jogador 1", "info");
-    }
-
-    // Atualiza localmente
-    handleRemoteSelection(myPlayerId, charId);
-    
-    // Envia para o outro jogador
-    sendCharacterSelection(charId);
-}
-
-// Função chamada quando recebo a escolha (minha ou do outro)
-function handleRemoteSelection(playerNum, charId) {
-    selectCharacterLogic(playerNum, charId);
-}
-
-// Função para desfazer a seleção
-function undoCharacterSelection() {
-    if (isSoloMode) {
-        // Desfaz o último selecionado (P2, depois P1)
-        if (playerSelections.player2) {
-            handleRemoteUndo(2);
-        } else if (playerSelections.player1) {
-            handleRemoteUndo(1);
-        }
-        return;
-    }
-
-    if (myPlayerId === 0) return;
-
-    const playerKey = `player${myPlayerId}`;
-    playerSelections[playerKey] = null;
-    
-    // Limpa no gameState
-    if (myPlayerId === 1) gameState.player1 = null;
-    else gameState.player2 = null;
-
-    // Envia cancelamento para o outro jogador
-    if (typeof sendUndoSelection === 'function') {
-        sendUndoSelection();
-    }
-
-    updateSelectionStatus();
-}
-
-function updateSelectionStatus() {
-    const statusEl = document.getElementById('selection-status');
-    const confirmBtn = document.getElementById('confirm-chars');
-    
-    // Atualiza visual dos cartões (bordas pulsantes)
-    // ... (código existente)
-    const cards = document.querySelectorAll('.character-card');
-    cards.forEach(card => {
-        card.classList.remove('selected-by-me', 'taken');
-        const charId = card.getAttribute('data-char');
-        
-        // Se EU escolhi este card
-        if (isSoloMode ? (playerSelections.player1 === charId || playerSelections.player2 === charId) : 
-           ((myPlayerId === 1 && playerSelections.player1 === charId) || (myPlayerId === 2 && playerSelections.player2 === charId))) {
-            card.classList.add('selected-by-me');
-        }
-        // Se o OUTRO escolheu este card
-        else if (!isSoloMode && ((myPlayerId === 1 && playerSelections.player2 === charId) || 
-                 (myPlayerId === 2 && playerSelections.player1 === charId))) {
-            card.classList.add('taken');
-        }
-    });
-
-    // Constrói o HTML de status melhorado
-    let p1Html = '<div class="player-status-card">👤 Jogador 1: Aguardando...</div>';
-    let p2Html = '<div class="player-status-card">👤 Jogador 2: Aguardando...</div>';
-
-    if (playerSelections.player1) {
-        const char1 = CHARACTERS[playerSelections.player1];
-        p1Html = `<div class="player-status-card ready">👤 Jogador 1: ${char1.icon} ${char1.name}</div>`;
-    }
-    
-    if (playerSelections.player2) {
-        const char2 = CHARACTERS[playerSelections.player2];
-        p2Html = `<div class="player-status-card ready">👤 Jogador 2: ${char2.icon} ${char2.name}</div>`;
-    }
-    
-    statusEl.innerHTML = p1Html + p2Html;
-    
-    // Mostra botão de desfazer se eu tiver selecionado algo
-    const undoBtn = document.getElementById('undo-selection');
-    if (isSoloMode ? (playerSelections.player1 || playerSelections.player2) : ((myPlayerId === 1 && playerSelections.player1) || (myPlayerId === 2 && playerSelections.player2))) {
-        undoBtn.style.display = 'block';
-    } else {
-        undoBtn.style.display = 'none';
-    }
-
-    // Mostra botão de confirmar se ambos escolheram
-    if (playerSelections.player1 && playerSelections.player2) {
-        // audioManager.playSound('sfx_notification');
-        confirmBtn.textContent = "Começar Aventura!";
-        confirmBtn.disabled = false;
-        confirmBtn.style.display = 'block';
-        confirmBtn.onclick = confirmCharacters; // Garante o evento
-    } else {
-        confirmBtn.style.display = 'block';
-        confirmBtn.disabled = true;
-        confirmBtn.textContent = "Aguardando ambos os jogadores...";
-    }
-}
-
-// Função para sincronizar a UI de seleção com o estado do jogo (chamada ao conectar)
-function syncUIFromGameState() {
-    // Atualiza playerSelections baseado no gameState recebido
-    if (gameState.player1 && gameState.player1.charId) {
-        playerSelections.player1 = gameState.player1.charId;
-    } else {
-        playerSelections.player1 = null;
-    }
-
-    if (gameState.player2 && gameState.player2.charId) {
-        playerSelections.player2 = gameState.player2.charId;
-    } else {
-        playerSelections.player2 = null;
-    }
-    
-    updateSelectionStatus();
-}
-
-// Lógica interna de seleção (reutilizada)
-function selectCharacterLogic(playerNum, charId) {
-    const playerKey = `player${playerNum}`;
-    
-    // Verifica conflito
-    const otherPlayer = playerNum === 1 ? 'player2' : 'player1';
-    if (playerSelections[otherPlayer] === charId) {
-        // Se for seleção remota conflitante, ignoramos ou tratamos
-        console.warn("Conflito de seleção de personagem!");
-        return;
-    }
-    
-    playerSelections[playerKey] = charId;
-    gameState.selectCharacter(playerNum, charId);
-    
-    // Notificação visual
-    // audioManager.playSound('sfx_click');
-    const charName = CHARACTERS[charId].name;
-    showNotification(`Jogador ${playerNum} selecionou ${charName}`, "success");
-    
-    updateSelectionStatus();
-}
-
-// Chamado quando o outro jogador desfaz a seleção
-function handleRemoteUndo(playerNum) {
-    const playerKey = `player${playerNum}`;
-    playerSelections[playerKey] = null;
-    
-    if (playerNum === 1) gameState.player1 = null;
-    else gameState.player2 = null;
-    
-    updateSelectionStatus();
-}
-
-// Chamado pelo multiplayer quando o outro clica numa decisão
-function handleRemoteDecisionClick(decisionIndex) {
-    handleDecision(decisionIndex, true); // true = isRemote
-}
-
-function confirmCharacters() {
-    // audioManager.playSound('sfx_click');
-    hideScreen('character-screen');
-    showScreen('game-screen');
-    
-    // Atualiza nomes nos botões de rolagem
-    const char1NameBtn = document.getElementById('char1-name');
-    const char2NameBtn = document.getElementById('char2-name');
-    
-    if (char1NameBtn && gameState.player1) {
-        char1NameBtn.textContent = `${gameState.player1.icon} ${gameState.player1.name}`;
-    }
-    if (char2NameBtn && gameState.player2) {
-        char2NameBtn.textContent = `${gameState.player2.icon} ${gameState.player2.name}`;
-    }
-    
-    // Inicializa a interface
-    gameState.updateCharacterDisplay();
-    gameState.updateProgressDisplay();
-    
-    // Carrega a primeira cena
-    loadScene(0);
-    // audioManager.playMusic('bg_music_game'); // Troca para a música do jogo
-}
-
-function loadScene(sceneIndex) {
-    if (sceneIndex >= SCENES.length) {
-        showEnding();
-        return;
-    }
-    
-    gameState.currentScene = sceneIndex;
-    gameState.save(); // Salva ao mudar de cena
-    const scene = SCENES[sceneIndex];
-    
-    const sceneContainer = document.getElementById('scene-container');
-    const decisionContainer = document.getElementById('decision-container');
-    
-    // Renderiza a cena
-    sceneContainer.innerHTML = `
-        <div class="scene-header">
-            <div class="scene-number">${scene.number}</div>
-            <h2 class="scene-title">${scene.title}</h2>
-        </div>
-        ${scene.description.map(p => `<p class="scene-text">${p}</p>`).join('')}
-    `;
-    
-    // Renderiza as decisões
-    if (scene.decisions) {
-        decisionContainer.innerHTML = `
-            <h3 class="decision-title">${scene.decisionTitle || 'O que vocês fazem?'}</h3>
-            <div class="decision-options">
-                ${scene.decisions.map((decision, index) => {
-                    // Verifica pré-requisitos
-                    if (decision.requires) {
-                        if (decision.requires.bond && gameState.bond < decision.requires.bond) {
-                            return ''; // Retorna string vazia se não atender ao requisito
-                        }
-                        // Futuro: adicionar mais requisitos
-                    }
-                    // O `index` aqui é o original, que será passado para handleDecision
-                    return renderDecision(decision, index);
-                }).join('')}
-            </div>
-        `;
-    }
-    
-    gameState.log(`📖 ${scene.number}: ${scene.title}`);
-    // audioManager.playSound('sfx_notification');
-    updateTurnIndicators(scene);
-}
-
-function renderDecision(decision, index) {
-    // Mapa de verbos para ajudar iniciantes a entenderem o atributo
-    const attrVerbs = {
-        ferro: "Forçar / Resistir",
-        fogo: "Agir Rápido / Combater",
-        sombra: "Esgueirar / Enganar",
-        engenho: "Perceber / Sobreviver",
-        coracao: "Convencer / Suportar"
-    };
-
-    return `
-        <div class="decision-card" onclick="handleDecision(${index})">
-            <h4 class="decision-card-title">${decision.icon || '📍'} ${decision.title}</h4>
-            <p>${decision.description}</p>
-            ${decision.roll ? `<div class="decision-roll-req">🎲 ${decision.roll}</div>` : ''}
-            ${decision.rollInfo ? `<div style="font-size: 0.8rem; color: #8b9bb4; margin-bottom: 10px;"><em>Teste de ${attrVerbs[decision.rollInfo.attribute] || decision.rollInfo.attribute}</em></div>` : ''}
-            ${decision.outcomes ? `<div class="outcomes">${renderOutcomes(decision.outcomes)}</div>` : ''}
-        </div>
-    `;
-}
-
-function updateTurnIndicators(scene) {
-    const p1Status = document.getElementById('char1-status');
-    const p2Status = document.getElementById('char2-status');
-    
-    if (!p1Status || !p2Status) return;
-    
-    // Limpa estados anteriores
-    p1Status.classList.remove('active-turn');
-    p2Status.classList.remove('active-turn');
-    
-    if (!scene.decisions) return;
-    
-    let p1Active = false;
-    let p2Active = false;
-    
-    scene.decisions.forEach(d => {
-        // Verifica se a decisão está visível (requisitos)
-        if (d.requires && d.requires.bond && gameState.bond < d.requires.bond) return;
-
-        if (d.requiresRoll && d.rollInfo) {
-            if (d.rollInfo.playerNum === 1) p1Active = true;
-            if (d.rollInfo.playerNum === 2) p2Active = true;
+    selectChar(charId) {
+        if (this.mode === 'online' && !this.isHost) {
+            // Cliente envia intenção para o Host
+            multiplayer.send({
+                type: 'CLIENT_SELECT_CHAR',
+                charId: charId,
+                playerId: this.currentPlayer
+            });
         } else {
-            // Decisões narrativas ou sem rolagem específica: ambos podem agir
-            p1Active = true;
-            p2Active = true;
+            // Host (ou Offline) processa a lógica
+            let targetPlayer = this.currentPlayer;
+            
+            if (this.mode === 'offline') {
+                // Lógica inteligente para Offline: Preencher slots ou trocar
+                if (this.selectedChars.p1 === charId) targetPlayer = 1;
+                else if (this.selectedChars.p2 === charId) targetPlayer = 2;
+                else if (!this.selectedChars.p1) targetPlayer = 1;
+                else if (!this.selectedChars.p2) targetPlayer = 2;
+                else {
+                    this.notify("Ambos os heróis já foram escolhidos! Desmarque um para trocar.", "warning");
+                    return;
+                }
+            }
+            
+            this.processCharSelection(targetPlayer, charId);
         }
-    });
-    
-    if (p1Active) p1Status.classList.add('active-turn');
-    if (p2Active) p2Status.classList.add('active-turn');
-}
+    },
 
-function renderOutcomes(outcomes) {
-    return `
-        <div class="outcome success">
-            <strong>✅ Sucesso:</strong> ${outcomes.success}
-        </div>
-        ${outcomes.partial ? `
-        <div class="outcome partial">
-            <strong>🌓 Parcial (Sucesso com Custo):</strong> ${outcomes.partial}
-        </div>` : ''}
-        <div class="outcome fail">
-            <strong>❌ Falha:</strong> ${outcomes.fail}
-        </div>
-    `;
-}
+    // Host processa a seleção (Autoridade)
+    processCharSelection(playerNum, charId) {
+        const key = `p${playerNum}`;
+        const otherKey = playerNum === 1 ? 'p2' : 'p1';
 
-// Função para reativar os cartões (chamada se o modal de dados for fechado sem rolar)
-function enableDecisionCards() {
-    const decisionCards = document.querySelectorAll('.decision-card');
-    decisionCards.forEach(card => {
-        card.style.pointerEvents = 'all';
-        card.style.opacity = '1';
-    });
-}
-
-function handleDecision(decisionIndex, isRemote = false) {
-    const scene = SCENES[gameState.currentScene];
-    const decision = scene.decisions[decisionIndex];
-    
-    if (!decision) return;
-    
-    // Desativa todos os botões de decisão para evitar cliques duplos
-    // audioManager.playSound('sfx_click');
-    const decisionCards = document.querySelectorAll('.decision-card');
-    decisionCards.forEach(card => {
-        card.style.pointerEvents = 'none';
-        card.style.opacity = '0.6';
-    });
-
-    // Se fui eu que cliquei, avisa o outro jogador imediatamente
-    if (!isRemote && typeof sendDecisionClick === 'function') {
-        sendDecisionClick(decisionIndex);
-    }
-    
-    // gameState.log(`🎯 Escolheram: ${decision.title}`); // Log duplicado se não cuidar, melhor deixar o resultado falar
-    
-    // Se a decisão requer rolagem, mostra o modal
-    if (decision.requiresRoll) {
-        const { playerNum, attribute, bonus } = decision.rollInfo;
-        
-        showDiceRoller(playerNum, attribute, bonus || 0, (result) => {
-            applyDecisionResult(decision, result);
-        });
-    } else {
-        // Decisão narrativa, apenas avança
-        if (decision.onSelect) {
-            decision.onSelect();
+        // Validação: Personagem já tomado pelo outro?
+        if (this.selectedChars[otherKey] === charId) {
+            if (this.isHost) this.notify(`Conflito: ${charId} já selecionado!`, 'error');
+            return; // Rejeita
         }
-        advanceToNextScene();
-    }
-}
 
-function applyDecisionResult(decision, result) {
-    const outcome = decision.outcomes[result];
-    
-    // if (result === 'success') audioManager.playSound('sfx_success');
-    // else if (result === 'partial') audioManager.playSound('sfx_partial');
-    // else if (result === 'fail') audioManager.playSound('sfx_fail');
-    // else audioManager.playSound('sfx_notification');
+        // Toggle ou Seleção
+        if (this.selectedChars[key] === charId) {
+            this.selectedChars[key] = null; // Deselecionar
+            gameState[`player${playerNum}`] = null;
+            // Remove do gameState para limpar lixo
+        } else {
+            this.selectedChars[key] = charId;
+            gameState.initPlayer(playerNum, charId);
+        }
 
-    if (!outcome) {
-        console.error('Outcome não encontrado para:', result);
-        return;
-    }
-    
-    gameState.log(`📜 RESULTADO: ${outcome}`, 'result');
-    
-    // Adicionar ao diário
-    const scene = SCENES[gameState.currentScene];
-    gameState.addJournalEntry(scene.title, decision.title, outcome, result);
-    
-    // Aplica efeitos
-    if (decision.effects && decision.effects[result]) {
-        const effects = decision.effects[result];
+        this.updateCharSelection();
+
+        // Se online, Host sincroniza o estado com Cliente
+        if (this.mode === 'online' && this.isHost) {
+            this.syncSetupState();
+        }
+    },
+
+    updateCharSelection() {
+        // Atualiza visual dos cards
+        this.renderCharacterCards();
         
+        // Atualiza status
+        const status = document.getElementById('selection-status');
+        let html = '';
+        
+        if (this.selectedChars.p1) {
+            const char = CHARACTERS[this.selectedChars.p1];
+            html += `<div class="selection-tag p1">👤 Jogador 1: ${char.icon} ${char.name}</div>`;
+        }
+        
+        if (this.selectedChars.p2) {
+            const char = CHARACTERS[this.selectedChars.p2];
+            html += `<div class="selection-tag p2">👤 Jogador 2: ${char.icon} ${char.name}</div>`;
+        }
+        
+        status.innerHTML = html;
+        
+        // Habilita botão de confirmação
+        const confirmBtn = document.getElementById('confirm-chars');
+        let canConfirm = false;
+
+        // Regra: Só avança se AMBOS escolherem
+        if (this.selectedChars.p1 && this.selectedChars.p2) {
+            canConfirm = true;
+        }
+
+        if (canConfirm) {
+            // Apenas Host vê o botão habilitado para avançar fase
+            if (this.isHost || this.mode === 'offline') {
+                confirmBtn.style.display = 'block';
+                confirmBtn.textContent = "✅ Iniciar Juramento";
+                confirmBtn.disabled = false;
+                confirmBtn.onclick = () => this.confirmCharacters();
+            } else {
+                // Cliente vê status
+                confirmBtn.style.display = 'block';
+                confirmBtn.textContent = "Aguardando Host avançar...";
+                confirmBtn.disabled = true;
+            }
+        } else {
+            confirmBtn.style.display = 'none';
+        }
+        
+        // Mostra botão de desfazer
+        document.getElementById('undo-selection').style.display = 
+            (this.selectedChars.p1 || this.selectedChars.p2) ? 'block' : 'none';
+    },
+
+    undoCharacterSelection() {
+        this.selectedChars = { p1: null, p2: null };
+        gameState.player1 = null;
+        gameState.player2 = null;
+        this.updateCharSelection();
+    },
+
+    confirmCharacters() {
+        // Host avança a fase
+        if (this.mode === 'online' && this.isHost) {
+            this.setupState.phase = 'ASSET_SELECT';
+            this.syncSetupState();
+            multiplayer.send({ type: 'PHASE_CHANGE', screen: 'asset-screen' });
+        }
+
+        console.log('TODO: Avançando para Seleção de Ativos');
+        ui.showScreen('asset-screen');
+        ui.renderAssets(ASSETS_DATA);
+    },
+
+    // ============================================
+    // SELEÇÃO DE ATIVOS
+    // ============================================
+
+    selectAsset(assetId) {
+        if (this.mode === 'online' && !this.isHost) {
+            multiplayer.send({
+                type: 'CLIENT_SELECT_ASSET',
+                assetId: assetId,
+                playerId: this.currentPlayer
+            });
+        } else {
+            this.processAssetSelection(this.currentPlayer, assetId);
+        }
+    },
+
+    processAssetSelection(playerNum, assetId) {
+        const key = `p${playerNum}`;
+        
+        // Atualiza seleção
+        this.selectedAssets[key] = assetId;
+        gameState.addAsset(playerNum, assetId);
+        
+        ui.updateAssetStatus();
+        
+        // Sincroniza se for Host
+        if (this.mode === 'online' && this.isHost) {
+            this.syncSetupState();
+        }
+
+        // Verifica se ambos escolheram para habilitar botão
+        if (this.selectedAssets.p1 && this.selectedAssets.p2) {
+            const btn = document.getElementById('confirm-assets');
+            if (this.isHost || this.mode === 'offline') {
+                btn.style.display = 'block';
+                btn.textContent = "🎭 Começar Aventura";
+                btn.disabled = false;
+            } else {
+                btn.style.display = 'block';
+                btn.textContent = "Aguardando Host...";
+                btn.disabled = true;
+            }
+        }
+    },
+
+    finishSetup() {
+        if (this.mode === 'online') {
+            if (this.isHost) {
+                this.setupState.phase = 'GAME';
+                multiplayer.send({ type: 'START_GAME' }); // Mantendo compatibilidade
+                this.startGame();
+            } else {
+                // Cliente não clica aqui, ele espera o evento START_GAME
+            }
+        } else {
+            this.startGame();
+        }
+    },
+
+    startGame() {
+        // Verificação de segurança antes de iniciar
+        if (!gameState.player1 || (!gameState.player2 && this.mode === 'online')) {
+            console.error("❌ Erro Crítico: Jogadores não inicializados no startGame", gameState);
+            
+            if (this.mode === 'online' && !this.isHost) {
+                this.notify("Erro de sincronização. Tentando recuperar...", "error");
+                multiplayer.send({ type: 'PLAYER_JOINED' }); // Força resync
+            } else {
+                this.notify("Erro de estado. Reiniciando setup...", "error");
+                setTimeout(() => location.reload(), 2000);
+            }
+            return;
+        }
+        ui.showScreen('game-screen');
+        ui.updateCharacterDisplay();
+        ui.updateProgress();
+        this.loadScene(0);
+        this.notify('🎭 A saga começa...', 'info');
+    },
+
+    // ============================================
+    // GAMEPLAY - CENAS
+    // ============================================
+
+    loadScene(index, withTransition = true) {
+        if (index >= SCENES.length) {
+            this.showEnding();
+            return;
+        }
+        
+        const performLoad = () => {
+            // Só reseta o boss se estivermos entrando em uma NOVA cena
+            const scene = SCENES[index];
+            if (scene.boss && index !== gameState.currentScene) {
+                gameState.maxBossProgress = scene.boss.maxHP || scene.boss.health;
+                gameState.bossProgress = 0;
+            }
+
+            gameState.currentScene = index;
+            gameState.maxSceneReached = Math.max(gameState.maxSceneReached, index);
+            
+            ui.renderScene(scene);
+            
+            gameState.addLog(`📍 ${scene.title}`, 'scene');
+        };
+
+        if (withTransition) {
+            const overlay = document.getElementById('transition-overlay');
+            if (overlay) {
+                overlay.classList.add('active');
+                setTimeout(() => {
+                    performLoad();
+                    setTimeout(() => overlay.classList.remove('active'), 500);
+                }, 500);
+            } else {
+                performLoad();
+            }
+        } else {
+            performLoad();
+        }
+    },
+
+    handleDecision(decisionIndex) {
+        if (gameState.isResolving) return;
+        
+        const scene = SCENES[gameState.currentScene];
+        const decision = scene.decisions[decisionIndex];
+        
+        if (!decision) return;
+        
+        gameState.isResolving = true;
+        gameState.addLog(`🎯 Escolha: ${decision.title}`, 'decision');
+
+        // MULTIPLAYER: Envia decisão para o outro jogador
+        if (this.mode === 'online' && typeof multiplayer !== 'undefined') {
+            multiplayer.send({
+                type: 'DECISION_MADE',
+                decisionIndex: decisionIndex,
+                origin: multiplayer.myId
+            });
+        }
+        
+        if (decision.requiresRoll) {
+            const { playerNum, attribute, bonus } = decision.rollInfo;
+            dice.showDiceRoller(playerNum, attribute, bonus || 0, (result) => {
+                this.applyDecisionResult(decision, result);
+            });
+        } else {
+            // Decisão narrativa sem rolagem
+            setTimeout(() => {
+                this.applyDecisionResult(decision, 'success');
+            }, 500);
+        }
+    },
+
+    applyDecisionResult(decision, result) {
+        const outcome = decision.outcomes[result];
+        
+        if (outcome) {
+            gameState.addLog(`📜 ${outcome}`, 'outcome');
+        }
+        
+        // Aplica efeitos
+        if (decision.effects && decision.effects[result]) {
+            this.applyEffects(decision.effects[result]);
+        }
+        
+        // Adiciona entrada no diário
+        const scene = SCENES[gameState.currentScene];
+        gameState.addJournalEntry(scene.title, decision.title, outcome, result);
+        
+        // Avança
+        setTimeout(() => {
+            gameState.isResolving = false;
+            
+            const scene = SCENES[gameState.currentScene];
+            let shouldAdvance = true;
+
+            // Verifica se deve ficar na cena (ex: combate ou loja)
+            if (decision.stayInScene) {
+                shouldAdvance = false;
+                // Se for Boss, só avança se derrotado
+                if (scene.boss && gameState.bossProgress >= gameState.maxBossProgress) {
+                    shouldAdvance = true;
+                    this.notify(`☠️ ${scene.boss.name} derrotado!`, 'success');
+                }
+            }
+
+            if (shouldAdvance) {
+                const nextIndex = decision.nextScene !== undefined ? decision.nextScene : gameState.currentScene + 1;
+                this.loadScene(nextIndex, true); // Com transição
+            } else {
+                this.loadScene(gameState.currentScene, false); // Sem transição (apenas update UI)
+            }
+
+            // Troca de turno automática no modo offline
+            if (this.mode === 'offline') {
+                this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+                const p = gameState.getPlayer(this.currentPlayer);
+                if (p) {
+                    this.notify(`Vez de ${p.name}`, 'info');
+                    ui.updateCharacterDisplay();
+                }
+            }
+        }, 2000);
+    },
+
+    applyEffects(effects) {
+        // Progresso
         if (effects.progress) {
             gameState.addProgress(effects.progress);
         }
         
-        if (effects.health) {
-            Object.keys(effects.health).forEach(player => {
-                const playerNum = parseInt(player);
-                // if (effects.health[player] < 0) audioManager.playSound('sfx_damage');
-                // else audioManager.playSound('sfx_heal');
-                gameState.updateHealth(playerNum, effects.health[player]);
-                showFloatingDamage(playerNum, effects.health[player], 'health');
-            });
-        }
+        // Status dos jogadores
+        ['health', 'spirit', 'supplies', 'momentum'].forEach(stat => {
+            if (effects[stat] !== undefined) {
+                if (effects[`${stat}Both`]) {
+                    gameState.updateStatus(1, stat, effects[stat]);
+                    gameState.updateStatus(2, stat, effects[stat]);
+                } else if (effects.player) {
+                    gameState.updateStatus(effects.player, stat, effects[stat]);
+                }
+            }
+        });
         
-        if (effects.spirit) {
-            Object.keys(effects.spirit).forEach(player => {
-                const playerNum = parseInt(player);
-                // if (effects.spirit[player] < 0) audioManager.playSound('sfx_damage');
-                // else audioManager.playSound('sfx_heal');
-                gameState.updateSpirit(playerNum, effects.spirit[player]);
-                showFloatingDamage(playerNum, effects.spirit[player], 'spirit');
-            });
-        }
-        
-        if (effects.supplies) {
-            Object.keys(effects.supplies).forEach(player => {
-                // if (effects.supplies[player] < 0) audioManager.playSound('sfx_damage');
-                const playerNum = parseInt(player);
-                gameState.updateSupplies(playerNum, effects.supplies[player]);
-                showFloatingDamage(playerNum, effects.supplies[player], 'supplies');
-            });
-        }
-
-        if (effects.addItem) {
-            // Garante que addItem sempre receba um array para consistência
-            const itemsToAdd = Array.isArray(effects.addItem) ? effects.addItem : [effects.addItem];
-            itemsToAdd.forEach(item => gameState.addItem(item));
-            // audioManager.playSound('sfx_notification');
-
-        }
-
-        if (effects.removeItem) {
-            gameState.removeItem(effects.removeItem);
-        }
-
-        if (effects.achievement) {
-            gameState.unlockAchievement(effects.achievement);
-            // audioManager.playSound('sfx_notification');
-        }
-
+        // Laços
         if (effects.bond) {
             gameState.updateBond(effects.bond);
         }
-    }
-
-    // Verifica Game Over (Ambos com Saúde 0)
-    if (gameState.player1 && gameState.player2 && 
-        gameState.player1.status.health <= 0 && 
-        gameState.player1.status.spirit <= 0 && // Adicionado para game over por espírito
-        gameState.player2.status.health <= 0) {
-        setTimeout(showGameOver, 1500);
-        return;
-    }
-    
-    // Avança para próxima cena após 2 segundos (Melhoria de ritmo: era 3s)
-    setTimeout(() => {
-        advanceToNextScene();
-    }, 2000);
-}
-
-// Sistema de Feedback Visual (Floating Text)
-function showFloatingDamage(playerNum, amount, type) {
-    const elementId = playerNum === 1 ? 'char1-status' : 'char2-status';
-    const element = document.getElementById(elementId);
-    if (!element) return;
-
-    const rect = element.getBoundingClientRect();
-    // Posição central do card do personagem
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-
-    let text = amount > 0 ? `+${amount}` : `${amount}`;
-    let color = amount > 0 ? 'var(--success)' : 'var(--danger)';
-    
-    if (type === 'spirit') color = '#9b59b6'; // Roxo para espírito
-    if (type === 'supplies') color = '#f1c40f'; // Amarelo para suprimentos
-
-    showFloatingText(text, x, y, color);
-    
-    // Envia para o outro jogador ver também
-    if (typeof sendFloatingText === 'function') {
-        sendFloatingText(text, x, y, color);
-    }
-}
-
-function showFloatingText(text, x, y, color) {
-    const floatEl = document.createElement('div');
-    floatEl.className = 'floating-text';
-    floatEl.textContent = text;
-    floatEl.style.left = `${x}px`;
-    floatEl.style.top = `${y}px`;
-    floatEl.style.color = color;
-    document.body.appendChild(floatEl);
-
-    setTimeout(() => floatEl.remove(), 1500);
-}
-
-// Sistema de Notificações Gerais (Toasts)
-function showNotification(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    
-    let icon = 'ℹ️';
-    if (type === 'success') icon = '✅';
-    if (type === 'error') icon = '❌';
-    if (type === 'warning') icon = '⚠️';
-
-    toast.innerHTML = `<span>${icon}</span> ${message}`;
-    
-    container.appendChild(toast);
-
-    // Remove após 3 segundos
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-function updateRoomStatusUI(connected) {
-    // audioManager.playSound('sfx_notification');
-    const el = document.getElementById('room-status-indicator');
-    if (!el) return;
-    
-    el.classList.remove('hidden');
-    el.classList.toggle('active', connected);
-    el.textContent = connected ? "👥 Sala: 2 Jogadores (Conectado)" : "👤 Sala: Aguardando Jogador 2...";
-}
-
-function startMission2() {
-    gameState.progress = 0;
-    gameState.currentMission = 2;
-    gameState.resetSpecialAbilities();
-    gameState.updateProgressDisplay();
-    gameState.log("🌊 INÍCIO DA MISSÃO 2: O Chamado do Lago Profundo", 'system');
-    // audioManager.playSound('sfx_notification');
-    alert("Missão 1 Concluída! O progresso foi resetado para a nova jornada.");
-}
-
-function showGameOver() {
-    hideScreen('game-screen');
-    showScreen('game-over-screen');
-}
-
-function restartCurrentScene() {
-    // Recupera vida e espírito para tentar novamente
-    gameState.updateHealth(1, 5);
-    gameState.updateHealth(2, 5);
-    gameState.updateSpirit(1, 5);
-    gameState.updateSpirit(2, 5);
-    
-    gameState.log("🔄 O destino oferece uma segunda chance...", 'system');
-    // audioManager.playSound('sfx_notification');
-    
-    hideScreen('game-over-screen');
-    showScreen('game-screen');
-    
-    // Recarrega a cena atual
-    loadScene(gameState.currentScene);
-}
-
-function advanceToNextScene() {
-    const overlay = document.getElementById('transition-overlay');
-    
-    // 1. Escurece a tela
-    // audioManager.playSound('sfx_notification'); // Som de transição
-    if (overlay) overlay.classList.add('active');
-    
-    // 2. Aguarda a animação (1 segundo)
-    setTimeout(() => {
-        loadScene(gameState.currentScene + 1);
-        window.scrollTo(0, 0); // Rola para o topo enquanto está escuro
         
-        // 3. Clareia a tela novamente
-        setTimeout(() => {
-            if (overlay) overlay.classList.remove('active');
-        }, 500);
-    }, 1000);
-}
-
-function showEnding() {
-    const sceneContainer = document.getElementById('scene-container');
-    const decisionContainer = document.getElementById('decision-container');
-    
-    sceneContainer.innerHTML = `
-        <div class="scene-header">
-            <div class="scene-number">🎉 FIM DA AVENTURA</div>
-            <h2 class="scene-title">Parabéns, Aventureiros!</h2>
-        </div>
-        <p class="scene-text">Vocês completaram a jornada pelas Terras de Ferro!</p>
-        <p class="scene-text">Progresso final: ${gameState.progress}/${gameState.maxProgress}</p>
-    `;
-    
-    decisionContainer.innerHTML = `
-        <button class="btn-primary" onclick="location.reload()">Jogar Novamente</button>
-    `;
-}
-
-function closeInventory() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('inventory-modal');
-    if (modal) modal.classList.remove('active');
-}
-
-function showInventory() {
-    const modal = document.getElementById('inventory-modal');
-    const list1 = document.getElementById('inv-list-1');
-    const list2 = document.getElementById('inv-list-2');
-    const supplies1 = document.getElementById('inv-supplies-1');
-    const supplies2 = document.getElementById('inv-supplies-2');
-    
-    if (!modal) return;
-    // audioManager.playSound('sfx_click');
-    
-    // Atualiza visualização de suprimentos
-    if (gameState.player1) supplies1.textContent = `${gameState.player1.status.supplies}/${gameState.player1.status.maxSupplies}`;
-    if (gameState.player2) supplies2.textContent = `${gameState.player2.status.supplies}/${gameState.player2.status.maxSupplies}`;
-    
-    // Atualiza lista de itens
-    const items1 = gameState.inventory.filter(i => i.owner === 1);
-    const items2 = gameState.inventory.filter(i => i.owner === 2);
-
-    const renderItem = (item, owner) => {
-        // Verifica se posso trocar/usar (sou o dono OU sou o host jogando localmente)
-        const canTrade = myPlayerId === 0 || myPlayerId === owner;
-        const canUse = (myPlayerId === 0 || myPlayerId === owner) && item.use;
-        const targetOwner = owner === 1 ? 2 : 1;
-        
-        let buttons = '';
-        return `
-            <li>
-                <span>✨ ${item.name}</span>
-                ${canTrade ? `<button class="btn-trade" onclick="tradeItemAction('${item.id}', ${targetOwner})">⇄ Dar</button>` : ''}
-            </li>
-        `;
-    };
-    // Renderiza os itens com botões de ação
-    // ... (código existente)
-    list1.innerHTML = items1.length ? items1.map(i => renderItem(i, 1)).join('') : '<li class="empty-inv">Vazio</li>';
-    list2.innerHTML = items2.length ? items2.map(i => renderItem(i, 2)).join('') : '<li class="empty-inv">Vazio</li>';
-    
-    modal.classList.add('active');
-}
-
-function tradeItemAction(itemId, targetOwner) {
-    gameState.transferItem(itemId, targetOwner);
-    // audioManager.playSound('sfx_click');
-    
-    // Sincroniza se estiver online
-    if (typeof syncGameState === 'function') {
-        syncGameState();
-    }
-    
-    // Atualiza a UI
-    showInventory();
-}
-
-function useItemAction(itemId) {
-    // audioManager.playSound('sfx_click');
-    const itemIndex = gameState.inventory.findIndex(i => i.id === itemId);
-    if (itemIndex === -1) return;
-
-    const item = gameState.inventory[itemIndex];
-    const playerNum = item.owner;
-    const player = gameState.getPlayer(playerNum);
-
-    if (item.use) {
-        const { effect, amount, log } = item.use;
-        gameState.log(log || `🔧 ${player.name} usou ${item.name}!`, 'item_use');
-
-        if (effect === 'health') {
-            gameState.updateHealth(playerNum, amount);
-            showFloatingDamage(playerNum, amount, 'health');
+        // Itens
+        if (effects.addItem) {
+            gameState.addItem(effects.addItem, effects.itemOwner || 1);
         }
-        // Futuro: Adicionar outros efeitos como 'spirit', 'supplies', etc.
-    }
-
-    if (item.consumable) {
-        gameState.inventory.splice(itemIndex, 1);
-    }
-
-    if (typeof syncGameState === 'function') {
-        syncGameState();
-    }
-    
-    showInventory(); // Atualiza a UI do inventário
-}
-
-function rollOracle() {
-    // audioManager.playSound('sfx_click');
-    const outcomes = ["Sim, e...", "Sim.", "Sim, mas...", "Não, mas...", "Não.", "Não, e..."];
-    const result = outcomes[Math.floor(Math.random() * outcomes.length)];
-    const logMessage = `🔮 Oráculo responde: <strong>${result}</strong>`;    
-    
-    gameState.log(logMessage, 'oracle');
-
-    if (typeof sendOracleResult === 'function') {
-        sendOracleResult(logMessage, 'oracle');
-    }
-}
-
-function showRestModal() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('rest-modal');
-    const container = modal.querySelector('.rest-options');
-    
-    if (!modal || !container) return;
-
-    let html = '';
-    
-    [1, 2].forEach(num => {
-        const player = gameState.getPlayer(num);
-        if (!player) return;
         
-        const canAfford = player.status.supplies > 0;
-        const needsHealth = player.status.health < player.status.maxHealth;
-        const needsSpirit = player.status.spirit < player.status.maxSpirit;
+        if (effects.removeItem) {
+            gameState.removeItem(effects.removeItem);
+        }
         
-        html += `
-            <div class="rest-player-card">
-                <h4>${player.icon} ${player.name}</h4>
-                <div class="rest-stats">
-                    <span>❤️ ${player.status.health}/${player.status.maxHealth}</span>
-                    <span>🧠 ${player.status.spirit}/${player.status.maxSpirit}</span>
-                    <span>🎒 ${player.status.supplies}/${player.status.maxSupplies}</span>
+        // Conquistas
+        if (effects.achievement) {
+            gameState.unlockAchievement(effects.achievement);
+        }
+        
+        // Boss
+        if (effects.bossProgress) {
+            gameState.updateBossProgress(effects.bossProgress);
+            // Sincroniza progresso do chefe se estiver online
+            if (this.mode === 'online' && typeof multiplayer !== 'undefined') {
+                multiplayer.send({ 
+                    type: 'SYNC_BOSS', 
+                    value: gameState.bossProgress 
+                });
+            }
+        }
+
+        // Sincroniza inventário e status após efeitos
+        if (this.mode === 'online' && typeof multiplayer !== 'undefined') {
+            multiplayer.send({
+                type: 'SYNC_FULL_STATE',
+                state: gameState
+            });
+        }
+    },
+
+    // ============================================
+    // GERENCIAMENTO DE ITENS (Novo)
+    // ============================================
+
+    useItem(uniqueId) {
+        const item = gameState.inventory.find(i => i.id === uniqueId);
+        if (!item) return;
+
+        if (item.consumable && item.use) {
+            // Aplica efeito
+            const effect = {};
+            effect[item.use.effect] = item.use.amount;
+            
+            // Determina alvo (simplificado para self por enquanto)
+            gameState.updateStatus(item.owner, item.use.effect, item.use.amount);
+            
+            // Log e Remoção
+            gameState.addLog(item.use.log || `Item usado: ${item.name}`, 'success');
+            gameState.removeItem(item); // Remove o objeto específico
+            
+            ui.showInventory(); // Atualiza modal
+            ui.updateCharacterDisplay();
+        }
+    },
+
+    toggleEquipItem(uniqueId) {
+        const item = gameState.inventory.find(i => i.id === uniqueId);
+        if (!item) return;
+
+        // Se for equipar, verifica conflitos de slot (ex: impedir duas armaduras)
+        if (!item.equipped && item.slot) {
+            let conflictingSlots = [item.slot];
+
+            // Regra de Duas Mãos vs Mão Direita
+            if (item.slot === 'duas_maos') {
+                conflictingSlots.push('mao_direita');
+            } else if (item.slot === 'mao_direita') {
+                conflictingSlots.push('duas_maos');
+            }
+
+            const conflicts = gameState.inventory.filter(i => 
+                i.owner === item.owner && 
+                i.equipped && 
+                conflictingSlots.includes(i.slot) &&
+                i.id !== item.id
+            );
+
+            conflicts.forEach(conflict => {
+                conflict.equipped = false;
+                gameState.addLog(`🎒 ${conflict.name} foi desequipado.`, 'info');
+            });
+        }
+
+        // Alterna estado
+        item.equipped = !item.equipped;
+        
+        const status = item.equipped ? 'equipado' : 'desequipado';
+        const icon = item.equipped ? '⚔️' : '🎒';
+        
+        gameState.addLog(`${icon} ${item.name} foi ${status}.`, 'info');
+        
+        ui.showInventory(); // Atualiza lista
+        ui.updateCharacterDisplay(); // Atualiza stats na sidebar
+    },
+
+    // ============================================
+    // NAVEGAÇÃO E UTILIDADES
+    // ============================================
+
+    travelToScene(index) {
+        if (index > gameState.maxSceneReached) {
+            this.notify('Esta cena ainda está bloqueada!', 'warning');
+            return;
+        }
+        
+        ui.closeModal('map-modal');
+        this.loadScene(index);
+    },
+
+    restartCurrentScene() {
+        // Restaura status parcialmente
+        [1, 2].forEach(num => {
+            // Usa o método centralizado para garantir limites e feedback visual
+            gameState.updateStatus(num, 'health', 2);
+            gameState.updateStatus(num, 'spirit', 2);
+        });
+        
+        this.notify('Você recuperou o fôlego.', 'info');
+        ui.updateCharacterDisplay();
+        ui.showScreen('game-screen');
+        this.loadScene(gameState.currentScene);
+    },
+
+    requestLeaveGame() {
+        ui.openModal('leave-confirm-modal');
+    },
+
+    confirmLeaveGame() {
+        if (this.mode === 'online' && typeof multiplayer !== 'undefined') {
+            multiplayer.disconnect();
+        }
+        
+        // Reseta estado local
+        gameState.reset();
+        this.selectedChars = { p1: null, p2: null };
+        this.selectedAssets = { p1: null, p2: null };
+        this.setupState = { phase: 'CHAR_SELECT', ready: { p1: false, p2: false } };
+        
+        location.reload(); // Recarrega para garantir estado limpo
+    },
+
+    returnToMenu() {
+        // Removemos o save manual para evitar salvar estados corrompidos no meio da cena.
+        this.confirmLeaveGame();
+    },
+
+    showEnding() {
+        const progress = gameState.progress;
+        const maxProgress = gameState.maxProgress;
+        
+        let endingType = 'defeat';
+        if (progress >= maxProgress) endingType = 'victory';
+        else if (progress >= maxProgress * 0.6) endingType = 'partial';
+        
+        const container = document.getElementById('scene-container');
+        const decisionsContainer = document.getElementById('decision-container');
+        
+        if (endingType === 'victory') {
+            container.innerHTML = `
+                <div class="ending-container victory">
+                    <div class="ending-icon">👑</div>
+                    <h2>Juramento Cumprido</h2>
+                    <p>Vocês prevaleceram onde muitos falharam. As Terras de Ferro se lembrarão de sua coragem.</p>
+                    <div class="stats-final">
+                        <div>📊 Progresso: ${progress}/${maxProgress}</div>
+                        <div>🏆 Conquistas: ${gameState.unlockedAchievements.length}</div>
+                        <div>❤️ Laços: ${gameState.bond}</div>
+                    </div>
                 </div>
-                <div class="rest-actions">
-                    <button class="btn-rest" onclick="performRest(${num}, 'health')" ${!canAfford || !needsHealth ? 'disabled' : ''}>
-                        Curar (+2 ❤️ / -1 🎒)
-                    </button>
-                    <button class="btn-rest" onclick="performRest(${num}, 'spirit')" ${!canAfford || !needsSpirit ? 'disabled' : ''}>
-                        Relaxar (+2 🧠 / -1 🎒)
-                    </button>
+            `;
+            
+            gameState.unlockAchievement('lenda');
+        } else if (endingType === 'partial') {
+            container.innerHTML = `
+                <div class="ending-container partial">
+                    <div class="ending-icon">⚔️</div>
+                    <h2>Jornada Interrompida</h2>
+                    <p>Vocês lutaram bravamente, mas a jornada termina aqui. Talvez outro dia...</p>
                 </div>
-            </div>
+            `;
+        } else {
+            ui.showScreen('game-over-screen');
+            return;
+        }
+        
+        decisionsContainer.innerHTML = `
+            <button class="btn-primary" onclick="game.returnToMenu()">Voltar ao Menu</button>
         `;
-    });
-    
-    container.innerHTML = html;
-    modal.classList.add('active');
-}
+    },
 
-function closeRestModal() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('rest-modal');
-    if (modal) modal.classList.remove('active');
-}
+    triggerGameOver(playerNum) {
+        const p = gameState.getPlayer(playerNum);
+        this.notify(`☠️ ${p.name} caiu em combate!`, 'error');
+        ui.showScreen('game-over-screen');
+        // Opcional: Enviar evento de Game Over para o multiplayer
+    },
 
-function performRest(playerNum, type) {
-    // audioManager.playSound('sfx_heal');
-    const player = gameState.getPlayer(playerNum);
-    
-    if (player.status.supplies <= 0) return;
-    
-    gameState.updateSupplies(playerNum, -1);
-    
-    if (type === 'health') {
-        gameState.updateHealth(playerNum, 2);
-        gameState.log(`⛺ ${player.name} descansou e tratou os ferimentos.`, 'info');
-    } else {
-        gameState.updateSpirit(playerNum, 2);
-        gameState.log(`⛺ ${player.name} descansou e recuperou o ânimo.`, 'info');
-    }
-    
-    showRestModal(); // Atualiza a UI
-}
+    // ============================================
+    // SISTEMA DE CHAT E ORÁCULO
+    // ============================================
 
-function showAchievements() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('achievements-modal');
-    const grid = document.getElementById('achievements-grid');
-    
-    if (!modal || !grid) return;
+    useSpecialAbility() {
+        // Implementar habilidades especiais dos personagens
+        this.notify('Habilidade especial em desenvolvimento!', 'info');
+    },
 
-    let html = '';
-    
-    Object.values(ACHIEVEMENTS_DATA).forEach(ach => {
-        const isUnlocked = gameState.unlockedAchievements.includes(ach.id);
-        const statusClass = isUnlocked ? 'unlocked' : 'locked';
-        const icon = isUnlocked ? ach.icon : '🔒';
+    // ============================================
+    // NOTIFICAÇÕES
+    // ============================================
+
+    notify(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
         
-        html += `
-            <div class="achievement-card ${statusClass}">
-                <div class="ach-icon">${icon}</div>
-                <div class="ach-info">
-                    <h4>${ach.title}</h4>
-                    <p>${ach.description}</p>
-                </div>
-            </div>
-        `;
-    });
-    
-    grid.innerHTML = html;
-    modal.classList.add('active');
-}
-
-function closeAchievements() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('achievements-modal');
-    if (modal) modal.classList.remove('active');
-}
-
-function showJournal() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('journal-modal');
-    const list = document.getElementById('journal-entries');
-    
-    if (!modal || !list) return;
-
-    if (gameState.journal.length === 0) {
-        list.innerHTML = '<div class="empty-journal">O diário ainda está em branco. A aventura aguarda.</div>';
-    } else {
-        list.innerHTML = gameState.journal.map(entry => `
-            <div class="journal-entry ${entry.resultType}">
-                <div class="journal-header">
-                    <span>${entry.scene}</span>
-                    <span>${entry.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                </div>
-                <div class="journal-decision">${entry.decision}</div>
-                <div class="journal-outcome">"${entry.outcome}"</div>
-            </div>
-        `).join('');
-    }
-    
-    modal.classList.add('active');
-}
-
-function closeJournal() {
-    // audioManager.playSound('sfx_click');
-    const modal = document.getElementById('journal-modal');
-    if (modal) modal.classList.remove('active');
-}
-
-function showConnectionLostModal() {
-    const modal = document.getElementById('connection-lost-modal');
-    if (modal) modal.classList.add('active');
-}
-
-function hideConnectionLostModal() {
-    const modal = document.getElementById('connection-lost-modal');
-    if (modal) modal.classList.remove('active');
-}
-
-function handleChatKey(event) {
-    if (event.key === 'Enter') {
-        sendChatMessage();
-    }
-}
-
-function sendChatMessage() {
-    // audioManager.playSound('sfx_click');
-    const input = document.getElementById('chat-input');
-    const message = input.value.trim();
-    if (!message) return;
-
-    // Futuro: Adicionar comandos como /rolar
-    const playerName = myPlayerId === 1 ? gameState.player1.name : gameState.player2.name;
-    const logMessage = `<strong>${playerName}:</strong> ${message}`;
-    
-    gameState.log(logMessage, 'chat');
-
-    if (typeof sendChat === 'function') {
-        sendChat(logMessage, 'chat');
-    }
-    
-    input.value = '';
-}
-
-function checkSaveGame() {
-    // audioManager.playMusic('bg_music_start');
-    if (localStorage.getItem('terrasDeFerroSave')) {
-        const btnContinue = document.getElementById('btn-continue');
-        if (btnContinue) btnContinue.style.display = 'inline-block';
-    }
-}
-
-function continueGame() {
-    // audioManager.playSound('sfx_click');
-    if (gameState.load()) {
-        stopTitleSparks(); // Otimização
-        hideScreen('start-screen');
-        showScreen('game-screen');
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
         
-        // Restaura a interface
-        gameState.updateCharacterDisplay();
-        gameState.updateProgressDisplay();
+        toast.innerHTML = `${icons[type] || 'ℹ️'} ${message}`;
+        container.appendChild(toast);
         
-        // Carrega a cena atual
-        loadScene(gameState.currentScene);
-        // audioManager.playMusic('bg_music_game');
-        
-        gameState.log("🔄 Jogo carregado com sucesso.", 'system');
-    } else {
-        alert("Erro ao carregar o jogo salvo.");
-    }
-}
-
-function useSpecialAbility() {
-    // audioManager.playSound('sfx_click');
-    gameState.performSpecialAbility();
-}
-
-let sparksInterval = null; // Variável para controlar o loop
-
-function initTitleSparks() {
-    const container = document.querySelector('.start-container');
-    const title = document.querySelector('.main-title');
-    
-    if (!container || !title) return;
-    
-    // Limpa intervalo anterior se existir
-    if (sparksInterval) clearInterval(sparksInterval);
-
-    sparksInterval = setInterval(() => {
-        // Verifica se a tela inicial está visível para não gastar processamento à toa
-        const startScreen = document.getElementById('start-screen');
-        // Otimização extra: Se não tiver a classe active, nem calcula nada
-        if (!startScreen || !startScreen.classList.contains('active')) return;
-
-        const spark = document.createElement('div');
-        spark.classList.add('ember');
-        
-        // Posicionamento relativo ao título
-        const titleRect = title.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        
-        // Posição X aleatória dentro da largura do título
-        const xPos = (titleRect.left - containerRect.left) + (Math.random() * titleRect.width);
-        // Posição Y na base do título (levemente para cima)
-        const yPos = (titleRect.top - containerRect.top) + (titleRect.height * 0.6);
-        
-        spark.style.left = `${xPos}px`;
-        spark.style.top = `${yPos}px`;
-        
-        // Variação aleatória de movimento (drift)
-        const drift = (Math.random() - 0.5) * 60; // Desvio lateral
-        spark.style.setProperty('--drift', `${drift}px`);
-        
-        // Tamanho aleatório
-        const size = Math.random() * 3 + 1;
-        spark.style.width = `${size}px`;
-        spark.style.height = `${size}px`;
-        
-        // Duração aleatória
-        const duration = 0.5 + Math.random() * 1.5;
-        spark.style.animation = `riseSparks ${duration}s ease-out forwards`;
-        
-        container.appendChild(spark);
-        
-        // Remove do DOM após a animação terminar
+        setTimeout(() => toast.classList.add('show'), 10);
         setTimeout(() => {
-            spark.remove();
-        }, duration * 1000);
-    }, 80); // Cria uma faísca a cada 80ms
-}
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    },
 
-function stopTitleSparks() {
-    if (sparksInterval) {
-        clearInterval(sparksInterval);
-        sparksInterval = null;
+    // ============================================
+    // REDE E UI AUXILIAR
+    // ============================================
+
+    handleNetworkMessage(data) {
+        // Chamado pelo multiplayer.js quando recebe dados
+        switch (data.type) {
+            case 'SETUP_UPDATE':
+                // Cliente recebe estado completo do setup
+                this.selectedChars = data.setupData.selectedChars;
+                this.selectedAssets = data.setupData.selectedAssets;
+                this.setupState = data.setupData.setupState;
+                
+                // CRÍTICO: Sincroniza o gameState (players) para evitar crash no start
+                if (data.setupData.gameState) {
+                    // Mesclagem profunda segura para garantir que player1 e player2 sejam objetos válidos
+                    if (data.setupData.gameState.player1) {
+                        gameState.player1 = data.setupData.gameState.player1;
+                        console.log('✅ Player 1 sincronizado:', gameState.player1.name);
+                    }
+                    if (data.setupData.gameState.player2) {
+                        gameState.player2 = data.setupData.gameState.player2;
+                        console.log('✅ Player 2 sincronizado:', gameState.player2.name);
+                    }
+                    
+                    // Copia outras propriedades essenciais
+                    gameState.inventory = data.setupData.gameState.inventory || [];
+                    gameState.progress = data.setupData.gameState.progress || 0;
+                    gameState.currentScene = data.setupData.gameState.currentScene || 0;
+                    // Object.assign(gameState, data.setupData.gameState); // Pode ser perigoso se sobrescrever métodos
+                }
+                
+                // Atualiza UI baseada no novo estado
+                if (this.setupState.phase === 'CHAR_SELECT') {
+                    ui.showScreen('character-screen'); // Garante tela certa (Late Join)
+                    this.updateCharSelection();
+                } else if (this.setupState.phase === 'ASSET_SELECT') {
+                    ui.showScreen('asset-screen'); // Garante tela certa (Late Join)
+                    ui.renderAssets(ASSETS_DATA);
+                    ui.updateAssetStatus();
+                    // Verifica botão do cliente
+                    if (this.selectedAssets.p1 && this.selectedAssets.p2) {
+                        const btn = document.getElementById('confirm-assets');
+                        btn.style.display = 'block';
+                        btn.textContent = "Aguardando Host...";
+                        btn.disabled = true;
+                    }
+                }
+                break;
+
+            case 'PHASE_CHANGE':
+                // Avanço forçado de tela
+                console.log('TODO: Mudança de fase para', data.screen);
+                ui.showScreen(data.screen);
+                if (data.screen === 'asset-screen') {
+                    ui.renderAssets(ASSETS_DATA);
+                }
+                break;
+
+            case 'START_GAME':
+                // Fecha modais que possam estar abertos
+                document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+                this.startGame();
+                break;
+            case 'SYNC_BOSS':
+                if (gameState) {
+                    gameState.bossProgress = data.value;
+                    if (ui && ui.updateBossDisplay) ui.updateBossDisplay();
+                }
+                break;
+            case 'DECISION_MADE':
+                // Evita loop infinito verificando se já estamos resolvendo
+                if (!gameState.isResolving) this.handleDecision(data.decisionIndex);
+                break;
+            
+            case 'ERROR_NOTIFY':
+                this.notify(data.message, 'error');
+                break;
+        }
+    },
+
+    // Host envia estado atual para Cliente
+    syncSetupState() {
+        multiplayer.send({
+            type: 'SETUP_UPDATE',
+            setupData: {
+                selectedChars: this.selectedChars,
+                selectedAssets: this.selectedAssets,
+                setupState: this.setupState,
+                gameState: gameState // Envia os objetos de jogador inicializados
+            }
+        });
+    },
+
+    updateBossUI() {
+        // Procura ou cria container do boss se a cena atual tiver um
+        const scene = SCENES[gameState.currentScene];
+        if (!scene || !scene.boss) return;
+
+        let container = document.getElementById('boss-ui-container');
+        if (!container) {
+            // Se não existe, o renderScene deveria ter criado, ou injetamos aqui
+            // Assumindo que renderScene cria a estrutura básica com id 'boss-health-bar'
+        }
+
+        const bar = document.getElementById('boss-health-bar');
+        if (bar) {
+            // Calcula vida restante (Max - Progresso)
+            const currentHP = Math.max(0, gameState.maxBossProgress - gameState.bossProgress);
+            const pct = (currentHP / gameState.maxBossProgress) * 100;
+            bar.style.width = `${pct}%`;
+            
+            if (currentHP === 0) bar.classList.add('depleted');
+            else bar.classList.remove('depleted');
+        }
     }
-}
+};
 
-// Inicialização quando a página carregar
+// Inicializa ao carregar
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🎮 Terras de Ferro carregado!');
-    checkSaveGame();
-    initTitleSparks();
-    gameState.log("Bem-vindo às Terras de Ferro! Para começar, crie ou entre em uma sala.", 'system');
+    game.init();
 });
-
-// --- Funções de Level Up ---
-function showLevelUpModal() {
-    const modal = document.getElementById('level-up-modal');
-    const optionsContainer = document.getElementById('level-up-options');
-    if (!modal || !optionsContainer) return;
-
-    optionsContainer.innerHTML = `
-        <p>Escolha um atributo para aumentar em 1:</p>
-        <button class="btn-primary" onclick="applyLevelUp('fogo')">🔥 Fogo</button>
-        <button class="btn-primary" onclick="applyLevelUp('sombra')">🌑 Sombra</button>
-        <button class="btn-primary" onclick="applyLevelUp('engenho')">🔧 Engenho</button>
-        <button class="btn-primary" onclick="applyLevelUp('ferro')">⚔️ Ferro</button>
-        <button class="btn-primary" onclick="applyLevelUp('coracao')">❤️ Coração</button>
-    `;
-    modal.classList.add('active');
-}
-
-function closeLevelUpModal() {
-    const modal = document.getElementById('level-up-modal');
-    if (modal) modal.classList.remove('active');
-}
-
-function applyLevelUp(attribute) {
-    audioManager.playSound('sfx_level_up');
-    // Lógica para aplicar o level up no personagem ativo (ou ambos)
-    // Por simplicidade, vamos aplicar ao player 1 por enquanto
-    if (gameState.player1) {
-        gameState.player1.stats[attribute]++;
-        gameState.log(`⭐ ${gameState.player1.name} aumentou ${attribute} para ${gameState.player1.stats[attribute]}!`, 'info');
-    }
-    // Se for multiplayer, precisaria enviar essa atualização para o outro jogador
-    // e ter uma lógica para qual jogador está "subindo de nível"
-    gameState.levelUp(); // Finaliza o processo de level up no GameState
-    closeLevelUpModal();
-    gameState.updateCharacterDisplay();
-}
-
-// --- Funções de Áudio ---
-function toggleAudio() {
-    const isMuted = audioManager.toggleMute();
-    const btn = document.getElementById('btn-mute');
-    if (btn) {
-        btn.textContent = isMuted ? "🔇 Som: Off" : "🔊 Som: On";
-        btn.style.opacity = isMuted ? "0.6" : "1";
-    }
-}

@@ -1,480 +1,294 @@
+<!-- h:\Meu Drive\2026\2. projetos\rpg-terras-de-ferro\index.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔️ Terras de Ferro — RPG para Dois</title>
+    <title>Terras de Ferro — RPG Dark Fantasy</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚔️</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Placeholder para arquivos de áudio. Você precisará criar/baixar estes arquivos. -->
-    <!-- Ex: music_start.mp3, music_game.mp3, sfx_click.mp3, sfx_dice_roll.mp3, sfx_success.mp3, sfx_partial.mp3, sfx_fail.mp3, sfx_notification.mp3, sfx_damage.mp3, sfx_heal.mp3, sfx_level_up.mp3 -->
-    <!-- Exemplo de como criar um arquivo de áudio simples:
-         - Use um editor de áudio (Audacity) ou gerador online.
-         - Para sfx_click: um "blip" curto.
-         - Para sfx_dice_roll: um som de dados chacoalhando.
-         - Para sfx_success/partial/fail: sons curtos que indiquem o resultado.
-         - Para sfx_notification: um "ding" suave.
-         - Para music_start/game: músicas ambiente que se encaixem no tema Dark Fantasy.
-    -->
-    <style>
-        /* Estilos adicionais para o Inventário */
-        .supplies-display {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            justify-content: center;
-        }
-        .supply-card {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            min-width: 100px;
-        }
-        .supply-value {
-            display: block;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--accent, #e94560);
-            margin: 0.5rem 0;
-        }
-        .inventory-list ul {
-            list-style: none;
-            padding: 0;
-            text-align: left;
-        }
-        .inventory-list li {
-            background: rgba(255, 255, 255, 0.05);
-            margin-bottom: 0.5rem;
-            padding: 0.8rem;
-            border-radius: 4px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .inventory-list li > span {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .empty-inv {
-            font-style: italic;
-            opacity: 0.6;
-            text-align: center !important;
-            justify-content: center;
-        }
-    </style>
+    <!-- PeerJS para Multiplayer -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
 </head>
 <body>
-    <!-- Overlay de Transição de Cena -->
+    <!-- Overlays de Efeito Global -->
     <div id="transition-overlay"></div>
-
-    <!-- Tutorial Elements -->
-   <div id="tutorial-overlay" class="tutorial-overlay" style="display: none;"></div>
-    <div id="tutorial-tooltip" class="tutorial-tooltip" style="display: none;">
-        <p id="tutorial-text">Texto do tutorial aqui.</p>
-        <button id="tutorial-btn" class="btn-primary btn-small" onclick="closeTutorial()">Entendi</button>
-    </div>
-
-    <!-- Camada de Névoa -->
     <div id="fog-overlay"></div>
+    <div id="damage-overlay"></div>
 
-    <!-- Notificações de Conquista -->
-    <div id="achievement-notification-container"></div>
-
-    <!-- Container de Notificações Gerais (Toasts) -->
+    <!-- Container de Notificações (Toasts) -->
     <div id="toast-container"></div>
 
-    <!-- Indicador de Status da Sala -->
-    <div id="room-status-indicator" class="room-status hidden">👥 Aguardando Jogadores...</div>
-
-    <!-- Tela de Início -->
+    <!-- ============================================
+         TELA 1: INÍCIO (HERO PAGE)
+         ============================================ -->
     <div id="start-screen" class="screen active">
+        <!-- Fundo com Parallax e Montanhas -->
         <div class="hero-bg">
-            <div class="parallax-layer layer-1"></div> <!-- Céu estrelado -->
-            <div class="parallax-layer layer-2"></div> <!-- Montanhas distantes -->
-            <div class="parallax-layer layer-3"></div> <!-- Montanhas próximas -->
-            <div class="parallax-layer layer-4"></div> <!-- Névoa -->
+            <div class="parallax-layer layer-1"></div>
+            <div class="parallax-layer layer-2"></div>
+            <div class="parallax-layer layer-3"></div>
+            <div class="parallax-layer layer-4"></div>
         </div>
+        
         <div class="start-container">
             <div class="title-glow">⚔️</div>
             <h1 class="main-title">Terras de Ferro</h1>
-            <p class="subtitle">Um RPG cooperativo para dois jogadores</p>
-            <button id="btn-continue" class="btn-primary" style="display: none;" onclick="continueGame()">Continuar Aventura</button>
+            <p class="subtitle">Juramentos. Ferro. Escuridão.</p>
             
-            <!-- Controles Multiplayer -->
+            <!-- Controles do Lobby -->
             <div class="lobby-controls">
-                <button id="btn-host" class="btn-primary" onclick="hostGame()">👑 Criar Sala (Sou Jogador 1)</button>
+                <button id="btn-host" class="btn-primary" onclick="game.hostGame()">
+                    👑 Criar Sala (Host)
+                </button>
                 
                 <div class="lobby-input-group">
-                    <input type="text" id="join-id-input" class="lobby-input" placeholder="Cole o ID da Sala aqui">
-                    <button id="btn-join" class="btn-secondary" onclick="joinGameUI()">Entrar</button>
+                    <input type="text" id="join-id-input" class="lobby-input" placeholder="ID da Sala">
+                    <button id="btn-paste" class="btn-secondary" onclick="game.pasteRoomId()" title="Colar ID">
+                        📋
+                    </button>
+                    <button id="btn-join" class="btn-secondary" onclick="game.joinGameUI()">
+                        Unir-se
+                    </button>
                 </div>
                 
-                <button class="btn-secondary" onclick="startOfflineGame()" style="margin-top: 10px; font-size: 0.9rem; opacity: 0.8;">Jogar Offline (Solo)</button>
+                <button class="btn-secondary btn-solo" onclick="game.startOfflineGame()">
+                    🎮 Jogar Solo
+                </button>
             </div>
-
-            <button class="btn-secondary" onclick="showRules()">Como Jogar</button>
+            
+            <button class="btn-secondary" onclick="ui.showRules()">Como Jogar</button>
         </div>
     </div>
 
-    <!-- Tela de Regras -->
+    <!-- ============================================
+         TELA 2: REGRAS
+         ============================================ -->
     <div id="rules-screen" class="screen">
         <div class="rules-container">
             <h2>🎲 Como Jogar</h2>
-            <div class="rule-section">
-                <h3>1. Rolar os Dados</h3>
-                <p>Clique no botão "Rolar Dados" quando precisar fazer uma ação arriscada.</p>
-                <p>O jogo rola automaticamente 1d6 (sua ação) e 2d10 (o desafio).</p>
+            <div class="rule-grid">
+                <div class="rule-card">
+                    <h3>🎲 A Rolagem</h3>
+                    <p>Para realizar uma ação, o jogo calcula:</p>
+                    <div class="formula-box">1d6 + Atributo + Bônus</div>
+                    <p class="formula-label">Este é seu <strong>Valor de Ação</strong></p>
+                    <hr class="rule-divider">
+                    <p>Ele é comparado contra:</p>
+                    <div class="formula-box challenge">2 Dados de 10 (2d10)</div>
+                    <p class="formula-label">Estes são os <strong>Dados de Desafio</strong></p>
+                </div>
+                <div class="rule-card">
+                    <h3>📊 O Veredito</h3>
+                    <p>Compare seu <strong>Valor de Ação</strong> com <strong>cada d10</strong> individualmente:</p>
+                    <ul>
+                        <li class="res-strong">✅ <strong>Sucesso Forte</strong><br><small>Seu total é MAIOR que os dois d10. Você consegue o que queria.</small></li>
+                        <li class="res-weak">⚠️ <strong>Sucesso Fraco</strong><br><small>Seu total é MAIOR que apenas um d10. Você consegue, mas paga um preço.</small></li>
+                        <li class="res-fail">❌ <strong>Falha</strong><br><small>Seu total é MENOR que os dois. Algo ruim acontece.</small></li>
+                    </ul>
+                </div>
+                <div class="rule-card">
+                    <h3>🔥 Recursos & Impulso</h3>
+                    <ul class="resources-list">
+                        <li><strong>❤️ Saúde / 🧠 Espírito:</strong> Se chegarem a 0, seu personagem enfrenta a morte ou a loucura.</li>
+                        <li><strong>🔥 Impulso:</strong> Ganhe fazendo movimentos com sucesso.</li>
+                        <li><strong>⚡ Queimar Impulso:</strong> Se seu Impulso for maior que um d10, você pode "queimá-lo" para anular aquele dado e melhorar seu resultado.</li>
+                    </ul>
+                </div>
             </div>
-            <div class="rule-section">
-                <h3>2. Entender o Resultado</h3>
-                <ul>
-                    <li><strong>✅ Sucesso Total:</strong> Deu tudo certo!</li>
-                    <li><strong>🌓 Sucesso Parcial:</strong> Deu certo, mas com custo.</li>
-                    <li><strong>❌ Falha:</strong> Algo deu errado.</li>
-                </ul>
-            </div>
-            <div class="rule-section">
-                <h3>3. Escolher as Decisões</h3>
-                <p>Vocês dois decidem juntos qual opção seguir em cada cena.</p>
-            </div>
-            <button class="btn-primary" onclick="hideRules()">Entendi!</button>
+            <button class="btn-primary" onclick="ui.hideRules()">Entendi!</button>
         </div>
     </div>
 
-    <!-- Tela de Seleção de Personagens -->
+    <!-- ============================================
+         TELA 3: SELEÇÃO DE PERSONAGENS
+         ============================================ -->
     <div id="character-screen" class="screen">
         <div class="char-select-container">
-            <h2>Escolham Seus Personagens</h2>
+            <h2>Quem são vocês?</h2>
             
-            <!-- Painel de Informações do Host (Movido para cá) -->
-            <div id="host-info" style="display: none; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 1px solid var(--accent);">
-                <p style="color: #a0aabf; margin-bottom: 5px;">Envie este ID para o Jogador 2:</p>
-                <div class="lobby-input-group" style="margin: 0 auto;">
-                    <input type="text" id="room-id-display" class="lobby-input" readonly value="Gerando ID...">
-                    <button id="btn-copy" class="btn-secondary" onclick="copyRoomId()">📋 Copiar</button>
+            <!-- Painel do Host (Multiplayer) -->
+            <div id="host-info" style="display: none;" class="glass-panel info-panel">
+                <p>📡 Compartilhe este ID com seu aliado:</p>
+                <div class="lobby-input-group">
+                    <input type="text" id="room-id-display" class="lobby-input" readonly value="...">
+                    <button id="btn-copy" class="btn-secondary" onclick="multiplayer.copyRoomId()">
+                        📋 Copiar
+                    </button>
                 </div>
-                <p id="connection-status" style="color: var(--warning); margin-top: 10px;">Aguardando conexão...</p>
+                <p id="connection-status" style="margin-top: 10px; color: #aaa; font-style: italic;">
+                    ⏳ Aguardando conexão do Jogador 2...
+                </p>
             </div>
 
-            <p class="char-subtitle">Cada jogador escolhe um personagem</p>
+            <!-- Grid de Personagens (Injetado via JS) -->
+            <div class="characters-grid"></div>
+
+            <!-- Status da Seleção -->
+            <div id="selection-status" class="selection-status"></div>
             
-            <div class="characters-grid">
-                <!-- Lyra -->
-                <div class="character-card" data-char="lyra">
-                    <div class="taken-overlay">
-                        <span class="taken-text">OCUPADO</span>
-                    </div>
-                    <div class="selected-badge">✅ SELECIONADO</div>
-                    <div class="char-header lyra-theme">
-                        <img src="assets/images/avatar_lyra.png" alt="Lyra" class="char-avatar">
-                        <h3>Lyra</h3>
-                        <p class="char-role">A Caçadora</p>
-                    </div>
-                    <div class="char-body">
-                        <p class="char-bio">"Silenciosa, observadora e mortal com um arco."</p>
-                        <div class="char-stats">
-                            <div class="stat-item" data-tooltip="Fogo: Agilidade, velocidade e combate agressivo.">
-                                <span class="stat-label">🔥 Fogo</span>
-                                <span class="stat-value highlight">3 ⭐</span>
-                            </div>
-                            <div class="stat-item" data-tooltip="Sombra: Furtividade, astúcia e mentiras.">
-                                <span class="stat-label">🌑 Sombra</span>
-                                <span class="stat-value">2</span>
-                            </div>
-                            <div class="stat-item" data-tooltip="Engenho: Percepção, sobrevivência e conhecimento.">
-                                <span class="stat-label">🔧 Engenho</span>
-                                <span class="stat-value">2</span>
-                            </div>
-                        </div>
-                        <div class="char-special">
-                            <strong>🎯 Arqueira:</strong> +1 ao atirar com arco
-                        </div>
-                    </div>
-                    <button class="btn-select" onclick="chooseCharacter('lyra')">Selecionar</button>
-                </div>
-
-                <!-- Daren -->
-                <div class="character-card" data-char="daren">
-                    <div class="taken-overlay">
-                        <span class="taken-text">OCUPADO</span>
-                    </div>
-                    <div class="selected-badge">✅ SELECIONADO</div>
-                    <div class="char-header daren-theme">
-                        <img src="assets/images/avatar_daren.png" alt="Daren" class="char-avatar">
-                        <h3>Daren</h3>
-                        <p class="char-role">O Curandeiro</p>
-                    </div>
-                    <div class="char-body">
-                        <p class="char-bio">"Empático, curioso e surpreendentemente corajoso."</p>
-                        <div class="char-stats">
-                            <div class="stat-item" data-tooltip="Coração: Coragem, força de vontade e empatia.">
-                                <span class="stat-label">❤️ Coração</span>
-                                <span class="stat-value highlight">3 ⭐</span>
-                            </div>
-                            <div class="stat-item" data-tooltip="Sombra: Furtividade, astúcia e mentiras.">
-                                <span class="stat-label">🌑 Sombra</span>
-                                <span class="stat-value">2</span>
-                            </div>
-                            <div class="stat-item" data-tooltip="Engenho: Percepção, sobrevivência e conhecimento.">
-                                <span class="stat-label">🔧 Engenho</span>
-                                <span class="stat-value">2</span>
-                            </div>
-                        </div>
-                        <div class="char-special">
-                            <strong>🌿 Curandeiro:</strong> Cura 3 HP sem rolar (1x por sessão)
-                        </div>
-                    </div>
-                    <button class="btn-select" onclick="chooseCharacter('daren')">Selecionar</button>
-                </div>
-            </div>
-
-            <div id="selection-status" class="selection-status">Aguardando seleções...</div>
-            <button id="undo-selection" class="btn-secondary" style="display: none; margin: 10px auto;" onclick="undoCharacterSelection()">↩️ Desfazer Seleção</button>
-            <button id="confirm-chars" class="btn-primary" style="display: none;" disabled>Aguardando o outro jogador...</button>
+            <button id="undo-selection" class="btn-secondary" style="display: none;" onclick="game.undoCharacterSelection()">
+                ↶ Desfazer
+            </button>
+            <button id="leave-room" class="btn-secondary" onclick="game.requestLeaveGame()">
+                🚪 Sair da Sala
+            </button>
+            <button id="confirm-chars" class="btn-primary" style="display: none;" disabled onclick="game.confirmCharacters()">
+                ✅ Iniciar Juramento
+            </button>
         </div>
     </div>
 
-    <!-- Tela de Game Over -->
-    <div id="game-over-screen" class="screen">
-        <div class="game-over-container">
-            <div class="skull-icon">☠️</div>
-            <h2>Fim da Linha</h2>
-            <p>A escuridão consumiu ambos os heróis.</p>
-            <button class="btn-primary" onclick="restartCurrentScene()">Tentar Novamente</button>
+    <!-- ============================================
+         TELA 4: SELEÇÃO DE ATIVOS
+         ============================================ -->
+    <div id="asset-screen" class="screen">
+        <div class="char-select-container">
+            <h2>Escolha seu Caminho</h2>
+            <p style="text-align: center; color: #aaa; margin-bottom: 20px;">
+                Cada herói começa com um Ativo especial.
+            </p>
+            <div id="asset-grid" class="asset-grid"></div>
+            <div id="asset-status" class="selection-status"></div>
+            <button id="confirm-assets" class="btn-primary" style="display: none;" onclick="game.finishSetup()">
+                🎭 Começar Aventura
+            </button>
         </div>
     </div>
 
-    <!-- Tela Principal do Jogo -->
+    <!-- ============================================
+         TELA 5: JOGO PRINCIPAL
+         ============================================ -->
     <div id="game-screen" class="screen">
         <div class="game-layout">
-            <!-- Sidebar com status dos personagens -->
+            <!-- Sidebar (Status e Controles) -->
             <aside class="sidebar">
                 <div class="party-info">
-                    <h3>Sua Dupla</h3>
+                    <h3>Aliados</h3>
                     <div id="char1-status" class="char-status"></div>
                     <div id="char2-status" class="char-status"></div>
                     <div id="bond-display" class="bond-display"></div>
                 </div>
                 
                 <div class="progress-section">
-                    <h4>Progresso da Missão</h4>
+                    <h4>Juramento de Ferro</h4>
                     <div class="progress-bar-container">
                         <div id="progress-bar" class="progress-bar"></div>
                     </div>
-                    <p id="progress-text">0/6 pontos</p>
+                    <p id="progress-text">0/10 Marcos</p>
                 </div>
 
                 <div class="controls">
-                    <button class="btn-action" onclick="showLevelUpModal()">⭐ Nível</button>
-                    <button class="btn-action" onclick="showDiceRoller()">🎲 Rolar Dados</button>
-                    <button class="btn-action" onclick="showInventory()">🎒 Inventário</button>
-                    <button class="btn-action" onclick="showRestModal()">⛺ Descansar</button>
-                    <button class="btn-action" onclick="showAchievements()">🏆 Conquistas</button>
-                    <button class="btn-action" onclick="showJournal()">📜 Diário</button>
-                    <button id="btn-mute" class="btn-action" onclick="toggleAudio()">🔊 Som: On</button>
-                    <button id="btn-special-ability" class="btn-action" style="display: none;" onclick="useSpecialAbility()">✨ Habilidade Especial</button>
+                    <button class="btn-action" onclick="dice.showDiceRoller(game.currentPlayer, 'ferro')">🎲 Rolar</button>
+                    <button class="btn-action" onclick="ui.showInventory()">🎒 Inventário</button>
+                    <button class="btn-action" onclick="ui.showRestModal()">⛺ Descansar</button>
+                    <button class="btn-action danger" onclick="game.requestLeaveGame()">🚪 Sair da Sala</button>
                 </div>
             </aside>
 
-            <!-- Área principal do jogo -->
+            <!-- Conteúdo da Cena -->
             <main class="main-content">
-                <div id="scene-container" class="scene-container">
-                    <!-- As cenas serão carregadas aqui -->
-                </div>
-
-                <div id="decision-container" class="decision-container">
-                    <!-- As decisões serão carregadas aqui -->
-                </div>
-
-                <div id="log-container" class="log-container">
-                    
-                    <!-- Histórico de ações -->
-                </div>
-                <div class="chat-input-container">
-                    <button class="btn-oracle" onclick="rollOracle()">🔮 Oráculo</button>
-                    <input type="text" id="chat-input" placeholder="Fale em personagem ou digite /rolar fogo..." onkeypress="handleChatKey(event)">
-                    <button class="btn-primary btn-small" onclick="sendChatMessage()">Enviar</button>
-                </div>
+                <div id="scene-container" class="scene-container"></div>
+                <div id="decision-container" class="decision-container"></div>
+                <div id="log-container" class="log-container"></div>
             </main>
         </div>
     </div>
 
-    <!-- Modal de Level Up -->
-    <div id="level-up-modal" class="modal">
-        <div class="modal-content level-up-modal-content">
-            <h3>⭐ Nível Acima!</h3>
-            <p style="text-align: center; color: #a0a0a0; margin-bottom: 20px;">Escolha uma melhoria para seu personagem.</p>
-            
-            <div id="level-up-options" class="level-up-options">
-                <!-- Opções geradas via JS -->
-            </div>
-
-            <button class="btn-close" onclick="closeLevelUpModal()">Fechar</button>
+    <!-- ============================================
+         TELA 6: GAME OVER
+         ============================================ -->
+    <div id="game-over-screen" class="screen">
+        <div class="game-over-container">
+            <div class="skull-icon">☠️</div>
+            <h2>Juramento Quebrado</h2>
+            <p>Sua jornada termina aqui, nas frias Terras de Ferro.</p>
+            <button class="btn-primary" onclick="game.restartCurrentScene()">🔄 Tentar Novamente</button>
+            <button class="btn-secondary" onclick="game.returnToMenu()">🏠 Voltar ao Menu</button>
         </div>
     </div>
 
-    <!-- Modal de Equipamento -->
-    <div id="equip-modal" class="modal">
-        <div class="modal-content equip-modal-content">
-            <h3>⚔️ Equipar Item</h3>
-            <p id="equip-modal-text" style="text-align: center; color: #a0a0a0; margin-bottom: 20px;">Escolha um slot para equipar o item.</p>
-            <div id="equip-slots" class="equip-slots"></div>
-            <button class="btn-close" onclick="closeEquipModal()">Cancelar</button>
-        </div>
-    </div>
-
-    <!-- Modal de Rolagem de Dados -->
+    <!-- ============================================
+         MODAIS (Dados, Inventário, Mapa)
+         ============================================ -->
+    
+    <!-- Modal de Dados -->
     <div id="dice-modal" class="modal">
         <div class="modal-content dice-modal-content">
-            <h3>🎲 Rolar Dados</h3>
-            <p id="dice-context">Quem está rolando?</p>
+            <h3>🎲 Rolar os Dados</h3>
+            <p id="dice-context">Teste de Atributo</p>
             
             <div class="dice-options">
-                <button class="btn-dice" onclick="rollDice(1)">
+                <button class="btn-dice" onclick="dice.roll(1)">
                     <span id="char1-name">Jogador 1</span>
                 </button>
-                <button class="btn-dice" onclick="rollDice(2)">
+                <button class="btn-dice" onclick="dice.roll(2)">
                     <span id="char2-name">Jogador 2</span>
                 </button>
             </div>
 
-            <div class="bond-controls-modal">
-                <button id="btn-use-bond" class="btn-secondary" onclick="useBondForRoll()">❤️ Usar Laço (+1)</button>
-                <span id="bond-count-modal">0/5</span>
+            <div class="modifiers">
+                <button id="btn-use-bond" class="btn-mod" onclick="dice.useBond()">
+                    ❤️ Laço (+1)
+                </button>
+                <button id="btn-burn-momentum" class="btn-mod momentum" onclick="dice.burnMomentum()" disabled>
+                    🔥 Queimar Impulso
+                </button>
             </div>
 
-            <div id="dice-result" class="dice-result" style="display: none;">
-                <div class="dice-display">
-                    <div class="die-box action-die">
-                        <span class="die-label">Ação (d6)</span>
-                        <span id="d6-result" class="die-value">-</span>
-                    </div>
-                    <div class="operator">+</div>
-                    <div class="die-box attr-die">
-                        <span class="die-label">Atributo</span>
-                        <span id="attr-result" class="die-value">-</span>
-                    </div>
-                    <div class="operator">=</div>
-                    <div class="die-box total-die">
-                        <span class="die-label">Total</span>
-                        <span id="total-result" class="die-value">-</span>
-                    </div>
-                </div>
-
-                <div class="vs">VS</div>
-
-                <div class="dice-display">
-                    <div class="die-box challenge-die">
-                        <span class="die-label">Desafio 1</span>
-                        <span id="d10-1-result" class="die-value">-</span>
-                    </div>
-                    <div class="die-box challenge-die">
-                        <span class="die-label">Desafio 2</span>
-                        <span id="d10-2-result" class="die-value">-</span>
-                    </div>
-                </div>
-
-                <div id="dice-verdict" class="dice-verdict"></div>
-            </div>
-
-            <button class="btn-close" onclick="closeDiceModal()">Fechar</button>
-        </div>
-    </div>
-
-    <!-- Modal de Inventário -->
-    <div id="inventory-modal" class="modal">
-        <div class="modal-content inventory-modal-content">
-            <h3>🎒 Inventário & Suprimentos</h3>
+            <div id="dice-result" class="dice-result" style="display: none;"></div>
             
-            <div class="supplies-display">
-                <div class="supply-card">
-                    <h4>Lyra</h4>
-                    <span id="inv-supplies-1" class="supply-value">5/5</span>
-                    <p>Suprimentos</p>
-                </div>
-                <div class="supply-card">
-                    <h4>Daren</h4>
-                    <span id="inv-supplies-2" class="supply-value">5/5</span>
-                    <p>Suprimentos</p>
-                </div>
-            </div>
-
-            <div class="inventory-list">
-                <div class="inventory-columns">
-                    <div class="inv-col">
-                        <h4>🎒 Lyra</h4>
-                        <ul id="inv-list-1"></ul>
-                    </div>
-                    <div class="inv-col">
-                        <h4>🎒 Daren</h4>
-                        <ul id="inv-list-2"></ul>
-                    </div>
-                </div>
-            </div>
-
-            <button class="btn-close" onclick="closeInventory()">Fechar</button>
+            <button class="btn-close" onclick="dice.closeModal()">Fechar</button>
         </div>
     </div>
 
     <!-- Modal de Descanso -->
     <div id="rest-modal" class="modal">
-        <div class="modal-content rest-modal-content">
+        <div class="modal-content">
             <h3>⛺ Acampamento</h3>
-            <p style="text-align: center; color: #a0a0a0; margin-bottom: 20px;">Gastem suprimentos para recuperar forças.</p>
-            
-            <div class="rest-options">
-                <!-- Opções geradas via JS -->
-            </div>
-
-            <button class="btn-close" onclick="closeRestModal()">Voltar</button>
+            <div id="rest-content"></div>
+            <button class="btn-close" onclick="ui.closeModal('rest-modal')">Fechar</button>
         </div>
     </div>
 
-    <!-- Modal de Conquistas -->
-    <div id="achievements-modal" class="modal">
-        <div class="modal-content achievements-modal-content">
-            <h3>🏆 Conquistas</h3>
-            <div id="achievements-grid" class="achievements-grid">
-                <!-- Gerado via JS -->
-            </div>
-            <button class="btn-close" onclick="closeAchievements()">Fechar</button>
+    <!-- Modal de Confirmação de Saída -->
+    <div id="leave-confirm-modal" class="modal">
+        <div class="modal-content" style="text-align: center;">
+            <h3>⚠️ Sair da Sala?</h3>
+            <p>Você perderá a conexão atual e voltará ao menu inicial.</p>
+            <button class="btn-action danger" onclick="game.confirmLeaveGame()">Sim, Sair</button>
+            <button class="btn-action" onclick="ui.closeModal('leave-confirm-modal')">Cancelar</button>
         </div>
     </div>
 
-    <!-- Modal de Diário -->
-    <div id="journal-modal" class="modal">
-        <div class="modal-content journal-modal-content">
-            <h3>📜 Diário de Missão</h3>
-            <div id="journal-entries" class="journal-list">
-                <!-- Gerado via JS -->
-            </div>
-            <button class="btn-close" onclick="closeJournal()">Fechar</button>
+    <!-- Modal de Inventário -->
+    <div id="inventory-modal" class="modal">
+        <div class="modal-content">
+            <h3>🎒 Inventário</h3>
+            <div id="inventory-content"></div>
+            <button class="btn-close" onclick="ui.closeModal('inventory-modal')">Fechar</button>
         </div>
     </div>
 
-    <!-- Modal de Conexão Perdida -->
-    <div id="connection-lost-modal" class="modal" style="z-index: 9999;">
-        <div class="modal-content" style="text-align: center; border-color: var(--danger);">
-            <div style="font-size: 4rem; margin-bottom: 10px;">🔌</div>
-            <h3 style="color: var(--danger);">Conexão Perdida!</h3>
-            <p>A conexão com o outro jogador caiu.</p>
-            <p style="font-size: 0.9rem; color: #aaa; margin-bottom: 20px;">Aguarde ele reconectar ou tente entrar novamente.</p>
-            
-            <!-- Botão apenas para o Cliente tentar reconectar se necessário -->
-            <button class="btn-primary" onclick="location.reload()">Recarregar e Tentar Novamente</button>
+    <!-- Modal de Mapa -->
+    <div id="map-modal" class="modal">
+        <div class="modal-content map-modal-content">
+            <h3>🗺️ Mapa das Terras de Ferro</h3>
+            <div id="map-content"></div>
+            <button class="btn-close" onclick="ui.closeModal('map-modal')">Fechar</button>
         </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="js/audio.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/characters.js"></script>
-    <script src="js/scenes.js"></script>
-    <script src="js/dice.js"></script>
+    <!-- ============================================
+         SCRIPTS (Ordem de Carregamento)
+         ============================================ -->
+    <script src="js/data/items.js"></script>
+    <script src="js/data/scenes.js"></script>
+    <script src="js/core/state.js"></script>
+    <script src="js/core/dice.js"></script>
+    <script src="js/ui/ui.js"></script>
     <script src="js/multiplayer.js"></script>
+    <script src="js/game.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const SCENES = [
     {
         number: "Cena 1",
         title: "Chegada a Vorgheim",
+        environment: "env-village",
         description: [
             "É fim de tarde. A aldeia é pequena — talvez 40 pessoas. As casas são de madeira escura e pedra. O lago ao fundo brilha de forma estranha sob o crepúsculo.",
             "Poucos aldeões estão nas ruas, e os que estão evitam olhar nos olhos de vocês.",
@@ -56,6 +57,8 @@ const SCENES = [
     {
         number: "Cena 2",
         title: "Os Espectros da Névoa",
+        environment: "env-mist",
+        weather: "rain",
         description: [
             "Quando o sol se põe, a névoa negra rola pelo vale. Ela é densa, fria e cheira a terra molhada e algo mais — sangue velho e ferro enferrujado.",
             "Três criaturas emergem da névoa — humanoides distorcidos, feitos de sombra e fumaça. Elas cercam vocês lentamente.",
@@ -124,6 +127,7 @@ const SCENES = [
     {
         number: "Cena 3",
         title: "O Segredo de Grend",
+        environment: "env-village",
         description: [
             "De manhã, vocês confrontam Grend, o conselheiro da aldeia — um homem de meia-idade com olhos que evitam o contato.",
             "Na mesa dele, semioculto sob um mapa, há um pergaminho com os mesmos símbolos dos postes.",
@@ -192,6 +196,7 @@ const SCENES = [
     {
         number: "Cena 4",
         title: "A Traição no Caminho",
+        environment: "env-mist",
         description: [
             "A caminho do altar nas montanhas, vocês são emboscados. Mas não por criaturas — por dois aldeões armados, liderados por ninguém menos que Solveig.",
             '"Vocês não vão destruir o altar. Meu filho Halvar está lá dentro. Se destruírem, ele morre de vez."',
@@ -242,6 +247,7 @@ const SCENES = [
     {
         number: "Cena 5",
         title: "O Altar nas Montanhas",
+        environment: "env-crypt",
         description: [
             "O altar é uma pedra enorme coberta de runas. No centro, uma gema negra pulsa. Ao lado, Valdris, o Encantador, está sentado.",
             '"Finalmente. Alguém que pode terminar o que comecei." Ele não criou a maldição. Ele está preso nela há 40 anos.',
@@ -310,6 +316,8 @@ const SCENES = [
     {
         number: "Cena 6",
         title: "O Confronto com Aldrek",
+        environment: "env-combat",
+        boss: { name: "Aldrek, o Colosso", maxHP: 3 }, // Configuração do Chefe
         description: [
             "A névoa se concentra e dela emerge Aldrek — um guerreiro colossal feito de raiva acumulada.",
             '"Liberdade ou silêncio eterno. Escolham."',
@@ -320,19 +328,20 @@ const SCENES = [
             {
                 icon: "⚔️",
                 title: "A Grande Batalha",
-                description: "Enfrentem Aldrek em combate direto. Lyra lidera o ataque.",
+                description: "Enfrentem Aldrek em combate direto. É preciso desgastá-lo.",
                 roll: "Lyra → Ferro (1d6 + 1)",
                 requiresRoll: true,
                 rollInfo: { playerNum: 1, attribute: 'ferro' },
+                stayInScene: true, // O padrão é ficar na cena até vencer
                 outcomes: {
-                    success: "Vitória! Aldrek dispersa. As almas são libertadas. Solveig abraça vocês. Juramento Cumprido!",
-                    partial: "Vencem, mas exaustos e feridos. Aldrek recua para as montanhas.",
-                    fail: "Aldrek é forte demais. Vocês sobrevivem, mas ele escapa. A vitória é amarga."
+                    success: "Golpe certeiro! A armadura de Aldrek racha sob o impacto.",
+                    partial: "Você acerta Aldrek, mas ele contra-ataca com brutalidade.",
+                    fail: "Aldrek bloqueia e absorve sua energia vital para se regenerar."
                 },
                 effects: {
-                    success: { progress: 2, achievement: 'sobrevivente' },
-                    partial: { progress: 1, health: { 1: -2, 2: -2 } },
-                    fail: { health: { 1: -3, 2: -3 } }
+                    success: { bossProgress: 1, achievement: 'sobrevivente' }, // bossProgress causa dano ao chefe
+                    partial: { bossProgress: 1, health: { 1: -2 } },
+                    fail: { health: { 1: -3, 2: -3 }, bossProgress: -1 }
                 },
             },
             {
@@ -359,28 +368,63 @@ const SCENES = [
     // CENA 6.5 - Acampamento (Downtime)
     {
         number: "Interlúdio",
-        title: "Sob as Estrelas",
+        title: "O Mercador da Estrada",
+        environment: "env-village",
         description: [
-            "A poeira da batalha assenta. Vocês encontram um lugar seguro para acampar e processar a vitória, por mais amarga que tenha sido.",
-            "A fogueira estala, lançando sombras dançantes em seus rostos cansados. É a primeira chance real que vocês têm para conversar desde que tudo começou."
+            "A poeira da batalha assenta. Na estrada, vocês encontram um mercador viajante com uma carroça cheia de curiosidades.",
+            '"Tempos difíceis, viajantes", diz ele. "Tenho itens que podem ajudar na jornada, se tiverem suprimentos para trocar."'
         ],
-        decisionTitle: "A conversa da noite",
+        decisionTitle: "Loja do Mercador (Gastar Suprimentos)",
         decisions: [
             {
-                icon: "💬",
-                title: "Relembrar os que se foram",
-                description: "Falar sobre as perdas e o custo da vitória. Isso fortalece a empatia mútua.",
+                icon: "🧪",
+                title: "Lyra: Comprar Poção (2 Sup)",
+                description: "Uma poção vermelha que fecha feridas instantaneamente.",
                 requiresRoll: false,
-                effects: { success: { spirit: { 1: 1, 2: 1 } } }, // 'success' é uma chave para aplicar o efeito
-                onSelect: () => setTimeout(startMission2, 1000)
+                requires: { supplies: 2, player: 1 },
+                stayInScene: true, // Permite continuar na loja
+                outcomes: { success: "Lyra troca suprimentos por uma poção de cura." },
+                effects: { 
+                    success: { 
+                        supplies: { 1: -2 }, 
+                        addItem: { name: "Poção de Cura", consumable: true, use: { effect: 'health', amount: 3, log: "🧪 Poção usada: +3 Saúde" } } 
+                    } 
+                }
             },
             {
-                icon: "🗺️",
-                title: "Planejar o próximo passo",
-                description: "Focar no futuro e preparar os equipamentos para a próxima jornada, ignorando o peso emocional.",
+                icon: "🧪",
+                title: "Daren: Comprar Poção (2 Sup)",
+                description: "Uma poção vermelha que fecha feridas instantaneamente.",
                 requiresRoll: false,
-                effects: { success: { supplies: { 1: 1, 2: 1 } } },
-                onSelect: () => setTimeout(startMission2, 1000)
+                requires: { supplies: 2, player: 2 },
+                stayInScene: true,
+                outcomes: { success: "Daren troca suprimentos por uma poção de cura." },
+                effects: { 
+                    success: { 
+                        supplies: { 2: -2 }, 
+                        addItem: { name: "Poção de Cura", consumable: true, use: { effect: 'health', amount: 3, log: "🧪 Poção usada: +3 Saúde" } } 
+                    } 
+                }
+            },
+            {
+                icon: "🛡️",
+                title: "Comprar Capa de Viajante (3 Sup)",
+                description: "Lyra: Uma capa resistente que ajuda a se esconder.",
+                requiresRoll: false,
+                requires: { supplies: 3, player: 1 },
+                stayInScene: true,
+                outcomes: { success: "Lyra adquire uma capa de excelente qualidade." },
+                effects: { 
+                    success: { supplies: { 1: -3 }, addItem: { name: "Capa de Viajante", slot: "corpo", bonusStats: { sombra: 1 } } } 
+                }
+            },
+            {
+                icon: "👋",
+                title: "Seguir Viagem",
+                description: "Agradecer ao mercador e continuar a jornada para o Lago Sombrio.",
+                requiresRoll: false,
+                stayInScene: false, // Avança a cena
+                onSelect: () => setTimeout(startMission2, 500)
             }
         ]
     },
@@ -391,6 +435,8 @@ const SCENES = [
     {
         number: "Cena 7",
         title: "O Lago Sombrio",
+        environment: "env-lake",
+        weather: "rain",
         description: [
             "Três dias após Vorgheim. O Lago Sombrio começa a borbulhar. Lyra descobre que seu amuleto tem o mesmo símbolo do altar.",
             "Kjeld, um pescador, revela uma entrada submersa. 'O verdadeiro altar está embaixo d'água'.",
@@ -447,6 +493,7 @@ const SCENES = [
     {
         number: "Cena 8",
         title: "A Cripta Submersa",
+        environment: "env-crypt",
         description: [
             "A caverna leva a uma cripta antiga. Daren traduz: 'Aqui jaz o que não deve acordar. Selado pelos Seis.'",
             "Lyra vê o nome de seu avô, Erlan, entre os Seladores. Ela é a última descendente.",
@@ -497,6 +544,8 @@ const SCENES = [
     {
         number: "Cena 9",
         title: "Os Guardiões de Nhar",
+        environment: "env-combat",
+        boss: { name: "Guardiões de Pedra", maxHP: 4 }, // Adiciona barra de vida de 4 pontos
         description: [
             "Quatro guardiões de pedra e névoa bloqueiam o caminho. Foram criados para impedir intrusos.",
             "Um deles carrega um medalhão com o símbolo de Erlan, avô de Lyra."
@@ -510,14 +559,23 @@ const SCENES = [
                 roll: "Lyra e Daren → Fogo Combinado (1d6 + 4)",
                 requiresRoll: true,
                 rollInfo: { playerNum: 1, attribute: 'fogo', bonus: 1 }, // Bônus simulando ajuda
+                stayInScene: true, // Mantém na cena até zerar a vida do chefe
                 outcomes: {
                     success: "Destroem todos. Lyra recupera o medalhão de seu avô.",
                     partial: "Passam, mas com custo sério. Ambos feridos na batalha.",
                     fail: "São empurrados de volta e perdem tempo precioso."
                 },
                 effects: {
-                    success: { progress: 2, addItem: "Medalhão de Erlan", achievement: 'guerreiro', bond: 1 },
-                    partial: { progress: 1, health: { 1: -3, 2: -3 } },
+                    success: { 
+                        bossProgress: 2, // Causa 2 de dano no chefe (ataque forte)
+                        addItem: { 
+                            name: "Medalhão de Erlan", 
+                            slot: "pescoço",
+                            bonusStats: { coracao: 1 } 
+                        }, 
+                        achievement: 'guerreiro', 
+                        bond: 1 },
+                    partial: { bossProgress: 1, health: { 1: -3, 2: -3 } }, // Causa 1 de dano
                     fail: { supplies: { 1: -2, 2: -2 } }
                 }
             },
@@ -525,6 +583,7 @@ const SCENES = [
                 icon: "🏅",
                 title: "Usar o Medalhão",
                 description: "Lyra tenta usar sua conexão ancestral para comandar os guardiões.",
+                requires: { item: "Medalhão de Erlan" },
                 roll: "Lyra → Coração (1d6 + 1)",
                 requiresRoll: true,
                 rollInfo: { playerNum: 1, attribute: 'coracao' },
@@ -546,6 +605,7 @@ const SCENES = [
     {
         number: "Cena 10",
         title: "A Torre Submersa de Nhar",
+        environment: "env-crypt",
         description: [
             "A câmara central contém uma torre onde queima uma chama negra: Nhar, a Fome Eterna.",
             "No pedestal, o amuleto de Erlan tem um encaixe vazio esperando o sangue de Lyra.",
@@ -596,6 +656,7 @@ const SCENES = [
     {
         number: "Cena Final",
         title: "O Despertar de Nhar",
+        environment: "env-combat",
         description: [
             "Nhar não é um ser, é uma mentira: a de que a fome é maior que tudo.",
             "Para selá-lo, Lyra precisa acreditar que o laço entre vocês é mais forte que o vazio.",
@@ -634,7 +695,7 @@ const SCENES = [
                     fail: "A energia é absorvida. Nhar fica mais forte. Fujam!"
                 },
                 effects: {
-                    success: { progress: 2 },
+                    success: { progress: 2, removeItem: "Medalhão de Erlan" },
                     partial: { progress: 2 },
                     fail: { health: { 1: -2, 2: -2 } }
                 }
@@ -646,6 +707,7 @@ const SCENES = [
     {
         number: "Epílogo",
         title: "O Legado dos Heróis",
+        environment: "env-village",
         description: [
             "A calmaria retorna às Terras de Ferro. Onde antes havia medo, agora há histórias sendo contadas ao redor das fogueiras.",
             "Vocês olham para o caminho que percorreram. As cicatrizes permanecem, mas a escuridão recuou.",
