@@ -6,7 +6,7 @@ const dice = {
     timeout: null,
     isRemoteRoll: false, // Flag para evitar loops de rede
 
-    showDiceRoller(playerNum, attribute, bonus = 0, callback) {
+    showDiceRoller(playerNum, attribute, bonus = 0, callback, isAuto = false) {
         this.context = { playerNum, attribute, bonus, callback };
         ui.openModal('dice-modal');
         
@@ -15,11 +15,24 @@ const dice = {
         const btnClose = document.querySelector('#dice-modal .btn-close');
         if (btnClose) btnClose.style.display = 'block'; // Garante que o botão fechar esteja visível inicialmente
 
+        // Identifica se é rolagem remota (Online e não sou eu)
+        const isRemote = (typeof game !== 'undefined' && game.mode === 'online' && playerNum !== game.currentPlayer);
+        const modalContent = document.querySelector('#dice-modal .modal-content');
+
+        // Reseta classes visuais
+        if (modalContent) {
+            modalContent.classList.remove('bot-roll', 'remote-roll');
+            if (isAuto) modalContent.classList.add('bot-roll');
+            if (isRemote) modalContent.classList.add('remote-roll');
+        }
+
         // Atualiza UI do modal
         const p = gameState.getPlayer(playerNum);
         const contextEl = document.getElementById('dice-context');
         if (contextEl && p) {
             contextEl.innerHTML = `<strong>${p.name}</strong> testando <strong>${attribute.toUpperCase()}</strong>`;
+            if (isAuto) contextEl.innerHTML = `🤖 <strong>${p.name}</strong> (Bot) testando <strong>${attribute.toUpperCase()}</strong>`;
+            if (isRemote) contextEl.innerHTML = `📡 <strong>${p.name}</strong> (Remoto) testando...`;
         }
         
         // Verifica se pode queimar impulso
@@ -27,6 +40,24 @@ const dice = {
         if (btnBurn) {
             btnBurn.disabled = true; // Só habilita DEPOIS de rolar se for falha
             btnBurn.onclick = () => this.burnMomentum();
+        }
+
+        // Lógica de Auto-Roll para Bot
+        if (isAuto) {
+            if (modalContent) modalContent.style.pointerEvents = 'none'; // Bloqueia cliques manuais
+            
+            setTimeout(() => {
+                this.roll(playerNum);
+                // Reabilita após rolar (para permitir fechar ou ver resultado)
+                setTimeout(() => {
+                    if (modalContent) modalContent.style.pointerEvents = 'auto';
+                }, 500);
+            }, 1500); // Delay dramático para ler o contexto
+        } else if (isRemote) {
+            // Se for remoto, bloqueia interação e apenas espera o evento de rede DICE_ROLLED
+            if (modalContent) modalContent.style.pointerEvents = 'none';
+        } else {
+            if (modalContent) modalContent.style.pointerEvents = 'auto';
         }
     },
 

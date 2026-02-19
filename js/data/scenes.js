@@ -123,6 +123,57 @@ const SCENES = [
         ]
     },
 
+    // CENA 2.5 - O Pesadelo (NOVA CENA)
+    {
+        number: "Cena 2.5",
+        title: "Sussurros na Escuridão",
+        environment: "env-mist",
+        description: [
+            "Vocês encontram um abrigo temporário antes de confrontar Grend. O cansaço vence o medo.",
+            "Mas o sono não traz descanso. Vocês compartilham um pesadelo: uma figura encapuzada oferece poder em troca de traição.",
+            "A voz sussurra: 'Apenas um de vocês sairá vivo das montanhas. Abandone o outro.'"
+        ],
+        decisionTitle: "Como vocês reagem ao pesadelo?",
+        decisions: [
+            {
+                icon: "🤝",
+                title: "Reafirmar o Laço",
+                description: "Acordam suando frio e prometem proteger um ao outro, não importa o custo.",
+                roll: "Daren → Coração (1d6 + 3)",
+                requiresRoll: true,
+                rollInfo: { playerNum: 2, attribute: 'coracao' },
+                outcomes: {
+                    success: "A confiança afasta a sombra. Vocês se sentem renovados e unidos.",
+                    partial: "Prometem lealdade, mas a dúvida planta uma semente no fundo da mente.",
+                    fail: "A desconfiança cresce. Vocês se olham diferente pela manhã."
+                },
+                effects: {
+                    success: { bond: 1, spirit: { 1: 1, 2: 1 } },
+                    partial: { spirit: { 1: 1, 2: 1 }, bond: 0 },
+                    fail: { spirit: { 1: -1, 2: -1 }, bond: -1 }
+                }
+            },
+            {
+                icon: "🧘",
+                title: "Meditar sobre a Visão",
+                description: "Lyra tenta entender a origem mágica desse sonho intrusivo.",
+                roll: "Lyra → Engenho (1d6 + 2)",
+                requiresRoll: true,
+                rollInfo: { playerNum: 1, attribute: 'engenho' },
+                outcomes: {
+                    success: "Não foi um sonho. Foi Valdris tentando dividi-los. Agora vocês conhecem o inimigo.",
+                    partial: "Percebe que é magia, mas a energia mental gasta causa dor de cabeça.",
+                    fail: "A mente de Lyra fica vulnerável aos sussurros."
+                },
+                effects: {
+                    success: { progress: 1, achievement: 'erudito' },
+                    partial: { spirit: { 1: -1 } },
+                    fail: { spirit: { 1: -2 } }
+                }
+            }
+        ]
+    },
+
     // CENA 3 - O Segredo de Grend
     {
         number: "Cena 3",
@@ -339,7 +390,7 @@ const SCENES = [
                     fail: "Aldrek bloqueia e absorve sua energia vital para se regenerar."
                 },
                 effects: {
-                    success: { bossProgress: 1, achievement: 'sobrevivente' }, // bossProgress causa dano ao chefe
+                    success: { bossProgress: 1, progress: 1, achievement: 'sobrevivente' }, // Adicionado progress: 1 para recompensar o combate
                     partial: { bossProgress: 1, health: { 1: -2 } },
                     fail: { health: { 1: -3, 2: -3 }, bossProgress: -1 }
                 },
@@ -423,8 +474,8 @@ const SCENES = [
                 title: "Seguir Viagem",
                 description: "Agradecer ao mercador e continuar a jornada para o Lago Sombrio.",
                 requiresRoll: false,
-                stayInScene: false, // Avança a cena
-                onSelect: () => setTimeout(startMission2, 500)
+                stayInScene: false,
+                nextScene: 7 // Aponta explicitamente para a Cena 7 (Lago Sombrio)
             }
         ]
     },
@@ -709,16 +760,38 @@ const SCENES = [
         title: "O Legado dos Heróis",
         environment: "env-village",
         description: [
-            "A calmaria retorna às Terras de Ferro. Onde antes havia medo, agora há histórias sendo contadas ao redor das fogueiras.",
-            "Vocês olham para o caminho que percorreram. As cicatrizes permanecem, mas a escuridão recuou.",
-            "O mundo é vasto e outros mistérios aguardam, mas por enquanto, a paz foi conquistada."
+            "A calmaria retorna às Terras de Ferro. A névoa se dissipou, revelando um amanhecer claro.",
+            "Vocês olham para o caminho que percorreram. As cicatrizes permanecem, mas a escuridão recuou. Agora, resta uma última questão.",
+            "O que será da parceria entre a Caçadora e o Curandeiro?"
         ],
-        decisionTitle: "O fim de um capítulo",
+        decisionTitle: "O Destino dos Laços",
         decisions: [
             {
-                icon: "🌅",
-                title: "Contemplar o Horizonte",
-                description: "Aceitar o destino e preparar-se para o que vier a seguir.",
+                icon: "⚔️",
+                title: "Irmãos de Armas (Requer Laço Alto)",
+                description: "Seus destinos estão entrelaçados. Vocês partem juntos para a próxima aventura.",
+                requiresRoll: true, // Simula um teste para verificar o valor
+                roll: "Teste de Laços (Automático)",
+                rollInfo: { playerNum: 1, attribute: 'coracao' }, // Dummy info
+                outcomes: {
+                    success: "Vocês juram lutar juntos até o fim dos dias. Uma nova lenda nasce.",
+                    partial: "Vocês viajam juntos por um tempo, mas sabem que um dia seus caminhos se separarão.",
+                    fail: "Apesar da vitória, as diferenças são muitas. Vocês se despedem com respeito."
+                },
+                // Usamos a lógica de 'roll' para simular a verificação de Bond no game.js ou apenas narrativa
+                // Como o sistema atual é baseado em dados, vamos fazer uma decisão narrativa que depende do jogador interpretar seu Bond
+                // OU, melhor: Uma decisão que não rola dados, mas o texto final depende da imaginação (RPG raiz).
+                // Vamos manter simples e narrativo:
+                requiresRoll: false,
+                onSelect: () => {
+                    // Esta lógica seria idealmente tratada no game.js, mas aqui deixamos a escolha narrativa
+                    // O jogador escolhe baseado no que sente que conquistou.
+                }
+            },
+            {
+                icon: "👋",
+                title: "Caminhos Separados",
+                description: "A missão acabou. É hora de voltar para casa, cada um para o seu lado.",
                 requiresRoll: false
             }
         ]

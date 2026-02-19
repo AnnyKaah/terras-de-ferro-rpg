@@ -31,6 +31,7 @@
 - **Inventário Colaborativo:** Sistema de troca de itens em tempo real entre os jogadores ("Dar item").
 - **Narrativa Ramificada:** Árvore de decisões complexa onde cada escolha afeta os atributos e o final da história.
 - **Persistência de Dados:** Salvamento automático no LocalStorage.
+- **PWA (Progressive Web App):** Instale como aplicativo nativo e jogue offline.
 
 ---
 
@@ -54,19 +55,39 @@
 
 ---
 
-## 📂 Estrutura do Projeto
+## 📱 Instalação como App (PWA)
+
+Este jogo é um **Progressive Web App (PWA)**, o que significa que pode ser instalado no seu dispositivo (Android, iOS, Windows, Mac) e jogado offline como um aplicativo nativo.
+
+**Como instalar:**
+- **Chrome/Edge (Desktop):** Clique no ícone de instalação (🖥️ ou ⊕) na barra de endereço.
+- **Android (Chrome):** Toque em "Opções" (⋮) > "Instalar aplicativo" ou "Adicionar à tela inicial".
+- **iOS (Safari):** Toque em "Compartilhar" (⎋) > "Adicionar à Tela de Início".
+
+Uma vez instalado, o jogo funciona em tela cheia e carrega instantaneamente, mesmo sem internet!
+
+---
+
+##  Estrutura do Projeto
 
 ```bash
 rpg-terras-de-ferro/
 ├── index.html          # Entry point e estrutura DOM
+├── manifest.json       # Configuração PWA
+├── sw.js               # Service Worker (Offline)
 ├── css/
 │   └── style.css       # Estilização, animações e responsividade
 ├── js/
-│   ├── game.js         # Core loop, gerenciamento de UI e orquestração
-│   ├── characters.js   # Classes de personagens, inventário e save system
-│   ├── dice.js         # Lógica matemática e visual dos dados
-│   ├── multiplayer.js  # Lógica de rede (PeerJS) e sincronização
-│   └── scenes.js       # Banco de dados narrativo (JSON-like structure)
+│   ├── game.js         # Core loop e orquestração
+│   ├── multiplayer.js  # Lógica de rede (PeerJS)
+│   ├── core/
+│   │   ├── state.js    # Estado global, personagens e save system
+│   │   └── dice.js     # Lógica de dados
+│   ├── data/
+│   │   ├── scenes.js   # Cenas e narrativa
+│   │   └── items.js    # Banco de dados de itens
+│   └── ui/
+│       └── ui.js       # Gerenciamento de Interface
 └── assets/             # Imagens e avatares
 ```
 

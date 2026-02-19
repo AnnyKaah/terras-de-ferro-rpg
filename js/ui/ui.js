@@ -37,8 +37,7 @@ const ui = {
                 <h4>${p.icon} ${p.name}</h4>
                 <div class="status-row"><span>❤️</span><div class="bar-track"><div class="bar-fill health" style="width:${hpPct}%"></div></div><span>${p.status.health}</span></div>
                 <div class="status-row"><span>🧠</span><div class="bar-track"><div class="bar-fill spirit" style="width:${spPct}%"></div></div><span>${p.status.spirit}</span></div>
-                <div class="status-row"><span>🎒</span><div class="bar-track"><div class="bar-fill supplies" style="width:${supPct}%"></div></div><span>${p.status.supplies}</span></div>
-                <div class="status-row"><span>🔥</span><div class="bar-track"><div class="bar-fill momentum" style="width:${momPct}%"></div></div><span>${p.status.momentum}</span></div>
+                <div class="status-row" title="Impulso"><span>🔥</span><div class="bar-track"><div class="bar-fill momentum" style="width:${momPct}%"></div></div><span>${p.status.momentum}</span></div>
                 <div class="assets-list">
                     <small>Ativos:</small>
                     ${p.assets ? p.assets.map(a => `<div class="asset-tag" title="${a.ability}">${a.icon} ${a.name}</div>`).join('') : ''}
@@ -110,13 +109,42 @@ const ui = {
         decContainer.innerHTML = scene.decisions.map((d, i) => {
             // Verifica se a decisão é exclusiva de um jogador
             let disabledClass = '';
+            let tooltipAttr = '';
+            
             if (game.mode === 'online' && d.rollInfo && d.rollInfo.playerNum !== game.currentPlayer) {
                 // Opcional: Desabilitar visualmente, mas permitir clique para "sugerir" ação?
                 // Por segurança, vamos marcar visualmente.
                 disabledClass = 'disabled-decision';
+                const pName = gameState.getPlayer(d.rollInfo.playerNum).name;
+                tooltipAttr = `data-tooltip="Aguardando decisão de ${pName}"`;
+            }
+            
+            // Verifica requisitos de recursos/itens
+            if (d.requires && typeof game !== 'undefined') {
+                const missing = [];
+                const req = d.requires;
+                
+                // Verifica Suprimentos (Global) - Movido para fora do check de player
+                if (req.supplies && gameState.sharedSupplies < req.supplies) missing.push(`${req.supplies} Suprimentos (Grupo)`);
+
+                if (req.player) {
+                    const p = gameState.getPlayer(req.player);
+                    if (req.spirit && p.status.spirit < req.spirit) missing.push(`${req.spirit} Espírito`);
+                    if (req.health && p.status.health < req.health) missing.push(`${req.health} Saúde`);
+                }
+                
+                if (req.item) {
+                    const hasItem = gameState.inventory.some(i => i.name === req.item || i.id === req.item);
+                    if (!hasItem) missing.push(`Item: ${req.item}`);
+                }
+
+                if (missing.length > 0) {
+                    disabledClass = 'disabled-decision';
+                    tooltipAttr = `data-tooltip="🔒 Requer: ${missing.join(', ')}"`;
+                }
             }
 
-            return `<div class="decision-card ${disabledClass}" onclick="game.handleDecision(${i})">
+            return `<div class="decision-card ${disabledClass}" onclick="game.handleDecision(${i})" ${tooltipAttr}>
                 <h4>${d.icon} ${d.title}</h4>
                 <p>${d.description}</p>
                 ${d.requiresRoll ? `<small>🎲 Teste de ${d.rollInfo.attribute}</small>` : ''}
@@ -126,6 +154,15 @@ const ui = {
         // Atualiza Ambiente
         document.body.className = scene.environment || '';
         if (scene.weather) document.body.classList.add(`weather-${scene.weather}`);
+    },
+
+    highlightDecision(index) {
+        const cards = document.querySelectorAll('.decision-card');
+        if (cards[index]) {
+            cards[index].classList.add('suggested-action');
+            // Remove o destaque após alguns segundos
+            setTimeout(() => cards[index].classList.remove('suggested-action'), 4000);
+        }
     },
 
     displayDiceResult(d6, attr, total, d10_1, d10_2, result, burned = false) {
@@ -153,9 +190,9 @@ const ui = {
     },
 
     triggerDamageEffect() {
-        const overlay = document.getElementById('damage-overlay');
-        overlay.classList.add('damage-flash');
-        setTimeout(() => overlay.classList.remove('damage-flash'), 500);
+        const el = document.getElementById('game-screen') || document.body;
+        el.classList.add('shake-effect');
+        setTimeout(() => el.classList.remove('shake-effect'), 500);
     },
 
     // Modais auxiliares
@@ -209,22 +246,15 @@ const ui = {
             <p>O acampamento é um momento de respiro nas Terras de Ferro.</p>
             ${herbalistText}
             <div class="rest-options">
-                <button class="btn-action" onclick="ui.performRest('health')">
+                <button class="btn-action" onclick="game.performRest('health')">
                     🍖 Comer e Descansar (+${hasHerbalist ? '3' : '2'} Saúde, -1 Suprimento)
                 </button>
-                <button class="btn-action" onclick="ui.performRest('spirit')">
+                <button class="btn-action" onclick="game.performRest('spirit')">
                     🔥 Conversar na Fogueira (+2 Espírito, -1 Suprimento)
                 </button>
             </div>
         `;
         this.openModal('rest-modal'); 
-    },
-
-    performRest(type) {
-        // Lógica simplificada de descanso
-        // Idealmente moveria para game.js ou state.js, mas para UI rápida serve aqui
-        alert("Você descansou e recuperou forças.");
-        this.closeModal('rest-modal');
     },
 
     showJournal() { this.openModal('journal-modal'); /* Implementar renderização */ },
@@ -275,8 +305,8 @@ const ui = {
     updateAssetStatus() {
         const status = document.getElementById('asset-status');
         let text = "";
-        if (gameState.player1 && gameState.player1.assets.length > 0) text += `✅ ${gameState.player1.name} pronto. `;
-        if (gameState.player2 && gameState.player2.assets.length > 0) text += `✅ ${gameState.player2.name} pronto.`;
+        if (gameState.player1 && gameState.player1.assets && gameState.player1.assets.length > 0) text += `✅ ${gameState.player1.name} pronto. `;
+        if (gameState.player2 && gameState.player2.assets && gameState.player2.assets.length > 0) text += `✅ ${gameState.player2.name} pronto.`;
         status.textContent = text;
     }
 };

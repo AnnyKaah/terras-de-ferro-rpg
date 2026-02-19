@@ -15,11 +15,6 @@ const game = {
     init() {
         // Injeta helpers de UI se o objeto ui existir (para efeitos visuais e boss)
         if (typeof ui !== 'undefined') {
-            ui.triggerDamageEffect = () => {
-                const app = document.getElementById('game-screen') || document.body;
-                app.classList.add('shake-effect');
-                setTimeout(() => app.classList.remove('shake-effect'), 500);
-            };
             
             ui.updateBossDisplay = () => {
                 this.updateBossUI();
@@ -170,13 +165,18 @@ const game = {
             let targetPlayer = this.currentPlayer;
             
             if (this.mode === 'offline') {
-                // Lógica inteligente para Offline: Preencher slots ou trocar
-                if (this.selectedChars.p1 === charId) targetPlayer = 1;
-                else if (this.selectedChars.p2 === charId) targetPlayer = 2;
-                else if (!this.selectedChars.p1) targetPlayer = 1;
-                else if (!this.selectedChars.p2) targetPlayer = 2;
-                else {
-                    this.notify("Ambos os heróis já foram escolhidos! Desmarque um para trocar.", "warning");
+                // Lógica Senior: Single Player com Companion
+                // Se o jogador escolhe um, o computador assume o outro automaticamente
+                this.selectedChars.p1 = charId;
+                gameState.initPlayer(1, charId);
+
+                // Define o Bot (o personagem que sobrou)
+                const otherCharId = Object.keys(CHARACTERS).find(id => id !== charId);
+                if (otherCharId) {
+                    this.selectedChars.p2 = otherCharId;
+                    gameState.initPlayer(2, otherCharId);
+                    // Marca visualmente que foi escolhido pelo sistema
+                    this.updateCharSelection();
                     return;
                 }
             }
@@ -246,7 +246,7 @@ const game = {
         if (canConfirm) {
             // Apenas Host vê o botão habilitado para avançar fase
             if (this.isHost || this.mode === 'offline') {
-                confirmBtn.style.display = 'block';
+                confirmBtn.style.display = 'inline-block';
                 confirmBtn.textContent = "✅ Iniciar Juramento";
                 confirmBtn.disabled = false;
                 confirmBtn.onclick = () => this.confirmCharacters();
@@ -307,6 +307,13 @@ const game = {
         // Atualiza seleção
         this.selectedAssets[key] = assetId;
         gameState.addAsset(playerNum, assetId);
+
+        // Se for offline, o Bot escolhe um ativo aleatório ou pré-definido
+        if (this.mode === 'offline' && playerNum === 1 && !this.selectedAssets.p2) {
+            const botAssets = Object.keys(ASSETS_DATA).filter(id => id !== assetId);
+            const randomAsset = botAssets[Math.floor(Math.random() * botAssets.length)];
+            this.processAssetSelection(2, randomAsset);
+        }
         
         ui.updateAssetStatus();
         
@@ -378,9 +385,13 @@ const game = {
         const performLoad = () => {
             // Só reseta o boss se estivermos entrando em uma NOVA cena
             const scene = SCENES[index];
-            if (scene.boss && index !== gameState.currentScene) {
+            if (scene.boss) {
+                // Garante que o maxBossProgress esteja atualizado com os dados da cena
                 gameState.maxBossProgress = scene.boss.maxHP || scene.boss.health;
-                gameState.bossProgress = 0;
+                
+                if (index !== gameState.currentScene) {
+                    gameState.bossProgress = 0;
+                }
             }
 
             gameState.currentScene = index;
@@ -389,6 +400,9 @@ const game = {
             ui.renderScene(scene);
             
             gameState.addLog(`📍 ${scene.title}`, 'scene');
+
+            // Gera dica do computador após carregar a cena
+            setTimeout(() => this.generateComputerHint(scene), 1500);
         };
 
         if (withTransition) {
@@ -407,13 +421,27 @@ const game = {
         }
     },
 
-    handleDecision(decisionIndex) {
+    handleDecision(decisionIndex, fromNetwork = false) {
         if (gameState.isResolving) return;
         
         const scene = SCENES[gameState.currentScene];
         const decision = scene.decisions[decisionIndex];
         
         if (!decision) return;
+        
+        // Validação de Requisitos (Recursos ou Itens)
+        if (decision.requires && !this.checkRequirements(decision.requires)) {
+            this.notify("⚠️ Requisitos não atendidos para esta ação!", "error");
+            return;
+        }
+
+        // BLOQUEIO ONLINE: Impede clicar na decisão do outro jogador
+        // Se vier da rede (fromNetwork), permitimos a execução para mostrar os dados
+        if (!fromNetwork && this.mode === 'online' && decision.rollInfo && decision.rollInfo.playerNum !== this.currentPlayer) {
+            const pName = gameState.getPlayer(decision.rollInfo.playerNum).name;
+            this.notify(`⚠️ Aguarde a decisão de ${pName}!`, 'warning');
+            return;
+        }
         
         gameState.isResolving = true;
         gameState.addLog(`🎯 Escolha: ${decision.title}`, 'decision');
@@ -429,9 +457,17 @@ const game = {
         
         if (decision.requiresRoll) {
             const { playerNum, attribute, bonus } = decision.rollInfo;
+            
+            // Verifica se é o Bot (Modo Offline + Player 2)
+            const isBot = (this.mode === 'offline' && playerNum === 2);
+            
+            if (isBot) {
+                this.notify(`🤖 ${gameState.getPlayer(2).name} está agindo...`, 'info');
+            }
+
             dice.showDiceRoller(playerNum, attribute, bonus || 0, (result) => {
                 this.applyDecisionResult(decision, result);
-            });
+            }, isBot); // Passa flag isBot para o dado
         } else {
             // Decisão narrativa sem rolagem
             setTimeout(() => {
@@ -500,12 +536,21 @@ const game = {
         
         // Status dos jogadores
         ['health', 'spirit', 'supplies', 'momentum'].forEach(stat => {
-            if (effects[stat] !== undefined) {
-                if (effects[`${stat}Both`]) {
-                    gameState.updateStatus(1, stat, effects[stat]);
-                    gameState.updateStatus(2, stat, effects[stat]);
-                } else if (effects.player) {
-                    gameState.updateStatus(effects.player, stat, effects[stat]);
+            const val = effects[stat];
+            if (val !== undefined) {
+                // Correção: Suporte para formato de objeto { 1: -2, 2: -1 } usado em scenes.js
+                if (typeof val === 'object' && val !== null) {
+                    Object.entries(val).forEach(([pNum, amount]) => {
+                        gameState.updateStatus(parseInt(pNum), stat, amount);
+                    });
+                } 
+                // Suporte legado (caso exista formato antigo)
+                else if (effects[`${stat}Both`]) {
+                    gameState.updateStatus(1, stat, val);
+                    gameState.updateStatus(2, stat, val);
+                } else if (effects.player || stat === 'supplies') {
+                    // Se for suprimentos (compartilhado), usa player 1 como padrão se não houver dono explícito
+                    gameState.updateStatus(effects.player || 1, stat, val);
                 }
             }
         });
@@ -517,7 +562,11 @@ const game = {
         
         // Itens
         if (effects.addItem) {
-            gameState.addItem(effects.addItem, effects.itemOwner || 1);
+            if (Array.isArray(effects.addItem)) {
+                effects.addItem.forEach(item => gameState.addItem(item, effects.itemOwner || 1));
+            } else {
+                gameState.addItem(effects.addItem, effects.itemOwner || 1);
+            }
         }
         
         if (effects.removeItem) {
@@ -585,8 +634,8 @@ const game = {
 
             // Regra de Duas Mãos vs Mão Direita
             if (item.slot === 'duas_maos') {
-                conflictingSlots.push('mao_direita');
-            } else if (item.slot === 'mao_direita') {
+                conflictingSlots.push('mao_direita', 'mao_esquerda');
+            } else if (item.slot === 'mao_direita' || item.slot === 'mao_esquerda') {
                 conflictingSlots.push('duas_maos');
             }
 
@@ -616,6 +665,52 @@ const game = {
     },
 
     // ============================================
+    // ACAMPAMENTO E DESCANSO
+    // ============================================
+
+    performRest(type) {
+        if (gameState.sharedSupplies < 1) {
+            this.notify("⚠️ Suprimentos insuficientes! (Requer 1)", "warning");
+            return;
+        }
+
+        // Consome 1 Suprimento do grupo
+        gameState.updateStatus(1, 'supplies', -1);
+
+        // EVENTO ALEATÓRIO DE DESCANSO (25% de chance)
+        // Adiciona tensão: descansar nem sempre é seguro
+        if (Math.random() < 0.25) {
+            const badEvent = Math.random() < 0.5;
+            if (badEvent) {
+                this.notify("⚠️ Pesadelos perturbam o sono! (-1 Espírito)", "warning");
+                gameState.updateStatus(1, 'spirit', -1);
+                gameState.updateStatus(2, 'spirit', -1);
+            } else {
+                this.notify("✨ Você encontra ervas raras perto do acampamento! (+1 Suprimento)", "success");
+                gameState.updateStatus(1, 'supplies', 1);
+            }
+        }
+
+        // Verifica bônus de Herbalista
+        const hasHerbalist = (gameState.player1 && gameState.player1.assets.some(a => a.id === 'herbalista')) || 
+                             (gameState.player2 && gameState.player2.assets.some(a => a.id === 'herbalista'));
+
+        if (type === 'health') {
+            const amount = hasHerbalist ? 3 : 2;
+            gameState.updateStatus(1, 'health', amount);
+            gameState.updateStatus(2, 'health', amount);
+            this.notify(`🍖 O grupo descansou. +${amount} Saúde.`, 'success');
+        } else if (type === 'spirit') {
+            gameState.updateStatus(1, 'spirit', 2);
+            gameState.updateStatus(2, 'spirit', 2);
+            this.notify(`🔥 Conversa na fogueira. +2 Espírito.`, 'success');
+        }
+
+        ui.closeModal('rest-modal');
+        ui.updateCharacterDisplay();
+    },
+
+    // ============================================
     // NAVEGAÇÃO E UTILIDADES
     // ============================================
 
@@ -632,11 +727,23 @@ const game = {
     restartCurrentScene() {
         // Restaura status parcialmente
         [1, 2].forEach(num => {
-            // Usa o método centralizado para garantir limites e feedback visual
-            gameState.updateStatus(num, 'health', 2);
-            gameState.updateStatus(num, 'spirit', 2);
+            const p = gameState.getPlayer(num);
+            if (p) {
+                // Lógica Corrigida: Calcula o delta para chegar a 2, garantindo que saia do negativo
+                const target = 2;
+                const healNeeded = p.status.health < target ? (target - p.status.health) : 0;
+                const spiritNeeded = p.status.spirit < target ? (target - p.status.spirit) : 0;
+                
+                if (healNeeded > 0) gameState.updateStatus(num, 'health', healNeeded);
+                if (spiritNeeded > 0) gameState.updateStatus(num, 'spirit', spiritNeeded);
+            }
         });
         
+        // Reseta o Boss se houver, para o desafio ser justo
+        if (SCENES[gameState.currentScene].boss) {
+            gameState.bossProgress = 0;
+        }
+
         this.notify('Você recuperou o fôlego.', 'info');
         ui.updateCharacterDisplay();
         ui.showScreen('game-screen');
@@ -718,6 +825,32 @@ const game = {
     },
 
     // ============================================
+    // VALIDAÇÃO DE REQUISITOS
+    // ============================================
+
+    checkRequirements(req) {
+        if (!req) return true;
+        
+        // Verifica Suprimentos (Global) - Independente de jogador
+        if (req.supplies && gameState.sharedSupplies < req.supplies) return false;
+
+        // Verifica Recursos de Jogador Específico
+        if (req.player) {
+            const p = gameState.getPlayer(req.player);
+            if (req.health && p.status.health < req.health) return false;
+            if (req.spirit && p.status.spirit < req.spirit) return false;
+        }
+
+        // Verifica Itens no Inventário Global
+        if (req.item) {
+            const hasItem = gameState.inventory.some(i => i.name === req.item || i.id === req.item);
+            if (!hasItem) return false;
+        }
+
+        return true;
+    },
+
+    // ============================================
     // SISTEMA DE CHAT E ORÁCULO
     // ============================================
 
@@ -750,6 +883,94 @@ const game = {
             toast.classList.remove('show');
             setTimeout(() => toast.remove(), 300);
         }, 3000);
+    },
+
+    // ============================================
+    // INTELIGÊNCIA DO COMPANHEIRO (DICAS)
+    // ============================================
+
+    generateComputerHint(scene) {
+        // Não gera dicas se a cena não tiver decisões ou se já estiver resolvendo
+        if (!scene.decisions || scene.decisions.length === 0 || gameState.isResolving) return;
+
+        // Analisa qual é a melhor opção baseada nas estatísticas
+        let bestDecisionIndex = -1;
+        let bestScore = -1;
+        let bestPlayer = 0;
+
+        // Personalidades: Lyra (Agressiva), Daren (Diplomático)
+        const personalities = {
+            lyra: ['ferro', 'fogo'],
+            daren: ['coracao', 'engenho']
+        };
+
+        scene.decisions.forEach((decision, index) => {
+            if (!decision.requiresRoll) return; // Ignora decisões narrativas por enquanto
+
+            const pNum = decision.rollInfo.playerNum;
+            const attr = decision.rollInfo.attribute;
+            const bonus = decision.rollInfo.bonus || 0;
+            
+            // Calcula chance de sucesso (Stat + Bonus)
+            const statVal = gameState.getStat(pNum, attr);
+            let score = statVal + bonus;
+
+            // Aplica bônus de personalidade (0.5 para preferir ações temáticas em empates)
+            const player = gameState.getPlayer(pNum);
+            if (player && personalities[player.charId] && personalities[player.charId].includes(attr)) {
+                score += 0.5;
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestDecisionIndex = index;
+                bestPlayer = pNum;
+            }
+        });
+
+        if (bestDecisionIndex !== -1) {
+            const decision = scene.decisions[bestDecisionIndex];
+            const playerObj = gameState.getPlayer(bestPlayer);
+            
+            if (!playerObj) return; // Segurança contra crash se player não for encontrado
+
+            const pName = playerObj.name;
+            const isBot = (this.mode === 'offline' && bestPlayer === 2) || (this.mode === 'online' && bestPlayer !== this.currentPlayer);
+            
+            let message = '';
+            if (isBot) {
+                // Frases de efeito baseadas na personalidade e atributo
+                const quotes = {
+                    lyra: {
+                        ferro: "Vou abrir caminho na força!",
+                        fogo: "Alvo na mira. Deixe comigo.",
+                        sombra: "Eles nem saberão o que os atingiu.",
+                        engenho: "Vejo uma vantagem tática aqui.",
+                        coracao: "Não tenho medo!"
+                    },
+                    daren: {
+                        coracao: "Acredito que podemos dialogar.",
+                        engenho: "Há sabedoria em observar antes.",
+                        ferro: "Protegerei você se for preciso.",
+                        fogo: "Precisamos agir rápido!",
+                        sombra: "Ocultos, estamos seguros."
+                    }
+                };
+
+                const attr = decision.rollInfo.attribute;
+                const quote = (quotes[playerObj.charId] && quotes[playerObj.charId][attr]) 
+                    ? quotes[playerObj.charId][attr] 
+                    : "Deixe comigo.";
+
+                message = `🤖 ${pName} diz: "${quote}"`;
+            } else {
+                message = `💡 Dica: Você tem a melhor chance com "${decision.title}".`;
+            }
+
+            // Exibe a dica na UI
+            this.notify(message, 'info');
+            ui.highlightDecision(bestDecisionIndex);
+        }
     },
 
     // ============================================
@@ -824,7 +1045,7 @@ const game = {
                 break;
             case 'DECISION_MADE':
                 // Evita loop infinito verificando se já estamos resolvendo
-                if (!gameState.isResolving) this.handleDecision(data.decisionIndex);
+                if (!gameState.isResolving) this.handleDecision(data.decisionIndex, true);
                 break;
             
             case 'ERROR_NOTIFY':

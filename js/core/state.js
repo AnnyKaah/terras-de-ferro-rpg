@@ -101,6 +101,8 @@ class GameState {
         this.isResolving = false;
         this.unlockedAchievements = [];
         this.maxSceneReached = 0; // Novo: Rastreia o progresso máximo
+        this.sharedSupplies = 5; // Suprimentos globais do grupo
+        this.maxSharedSupplies = 5;
     }
 
     initPlayer(slot, charId) {
@@ -112,7 +114,7 @@ class GameState {
             status: {
                 health: 5, maxHealth: 5,
                 spirit: 5, maxSpirit: 5,
-                supplies: 5, maxSupplies: 5,
+                supplies: this.sharedSupplies, maxSupplies: 5, // Sincroniza inicial
                 momentum: 2, maxMomentum: 10, minMomentum: -6 // Ironsworn rules
             },
             xp: 0,
@@ -134,7 +136,20 @@ class GameState {
         let max = p.status[`max${type.charAt(0).toUpperCase() + type.slice(1)}`];
         let min = type === 'momentum' ? p.status.minMomentum : 0;
 
-        p.status[type] = Math.max(min, Math.min(max, current + amount));
+        if (type === 'supplies') {
+            // Lógica de Suprimentos COMPARTILHADOS
+            this.sharedSupplies = Math.max(0, Math.min(this.maxSharedSupplies, this.sharedSupplies + amount));
+            
+            // Sincroniza o valor visual para AMBOS os jogadores
+            if (this.player1) this.player1.status.supplies = this.sharedSupplies;
+            if (this.player2) this.player2.status.supplies = this.sharedSupplies;
+            
+            // Log específico para grupo
+            if (amount !== 0) this.addLog(`🎒 Suprimentos do grupo: ${this.sharedSupplies} (${amount > 0 ? '+' : ''}${amount})`, 'info');
+        } else {
+            // Lógica Individual (Health, Spirit, Momentum)
+            p.status[type] = Math.max(min, Math.min(max, current + amount));
+        }
         
         // Feedback visual se for dano
         if (amount < 0 && (type === 'health' || type === 'spirit')) {
@@ -271,7 +286,8 @@ class GameState {
                 unlockedAchievements: this.unlockedAchievements,
                 maxSceneReached: this.maxSceneReached,
                 bossProgress: this.bossProgress,
-                maxBossProgress: this.maxBossProgress
+                maxBossProgress: this.maxBossProgress,
+                sharedSupplies: this.sharedSupplies
             };
             localStorage.setItem('terrasDeFerroSave', JSON.stringify(data));
         } catch (e) {
@@ -296,6 +312,7 @@ class GameState {
             this.maxSceneReached = parsed.maxSceneReached || 0;
             this.bossProgress = parsed.bossProgress || 0;
             this.maxBossProgress = parsed.maxBossProgress || 0;
+            this.sharedSupplies = parsed.sharedSupplies !== undefined ? parsed.sharedSupplies : 5;
 
             if (this.gameLog) {
                 this.gameLog.forEach(log => log.time = new Date(log.time));
