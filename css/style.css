@@ -1444,6 +1444,15 @@ h1, h2, h3, h4 {
     box-shadow: 0 10px 40px var(--warning-glow);
 }
 
+.toast.damage {
+    border-left-color: #ef4444;
+    background: linear-gradient(135deg, #450a0a, #1a0505); /* Fundo vermelho sangue escuro */
+    color: #fca5a5; /* Texto vermelho claro */
+    box-shadow: 0 10px 40px rgba(239, 68, 68, 0.4);
+    font-weight: 800;
+    font-size: 1.1rem;
+    animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; /* Reutiliza sua animação de shake */
+}
 
 @media (max-width: 968px) {
     .game-layout {
@@ -2112,6 +2121,19 @@ body.weather-rain::before {
     background: rgba(220, 38, 38, 0.1);
     color: #ffadad;
     box-shadow: 0 0 30px rgba(220, 38, 38, 0.3);
+}
+
+/* ============================================
+   EFEITO DE FLASH NA BARRA (DANO)
+   ============================================ */
+
+@keyframes bar-flash-white {
+    0% { filter: brightness(10) grayscale(1) drop-shadow(0 0 10px white); }
+    100% { filter: brightness(1) grayscale(0); }
+}
+
+.bar-fill.flash {
+    animation: bar-flash-white 0.4s ease-out;
 }
 
 /* ============================================

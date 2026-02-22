@@ -156,6 +156,16 @@ class GameState {
             ui.triggerDamageEffect();
         }
 
+        // Feedback Informativo (Senior UX): Notifica exatamente o que mudou
+        if (amount !== 0 && typeof game !== 'undefined' && game.notify) {
+            const icons = { health: '💔', spirit: '🧠', supplies: '🎒', momentum: '🔥' };
+            const labels = { health: 'Saúde', spirit: 'Espírito', supplies: 'Suprimentos', momentum: 'Impulso' };
+            const sign = amount > 0 ? '+' : '';
+            const notifType = amount > 0 ? 'success' : 'damage'; // Usa tipo 'damage' para perdas
+            
+            game.notify(`${icons[type] || ''} ${sign}${amount} ${labels[type] || type}`, notifType);
+        }
+
         // Verifica Game Over (Morte)
         if (type === 'health' && p.status.health <= 0) {
             // Pequeno delay para o jogador ver o dano antes da tela mudar
