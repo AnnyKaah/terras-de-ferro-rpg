@@ -183,8 +183,8 @@
 
                 <div class="controls">
                     <button class="btn-action" onclick="dice.showDiceRoller(game.currentPlayer, 'ferro')">🎲 Rolar</button>
-                    <button class="btn-action" onclick="ui.showInventory()">🎒 Inventário</button>
-                    <button class="btn-action" onclick="ui.showRestModal()">⛺ Descansar</button>
+                    <button id="btn-inventory" class="btn-action" onclick="ui.showInventory()">🎒 Inventário</button>
+                    <button id="btn-rest" class="btn-action" onclick="ui.showRestModal()">⛺ Descansar</button>
                     <button class="btn-action danger" onclick="game.requestLeaveGame()">🚪 Sair da Sala</button>
                 </div>
             </aside>

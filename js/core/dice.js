@@ -72,18 +72,6 @@ const dice = {
 
         let attrVal = gameState.getStat(playerNum, this.context.attribute) || 0;
         
-        // Bônus passivos (Ex: Lyra +1 em Fogo)
-        if (p.charId === 'lyra' && this.context.attribute === 'fogo') attrVal += 1;
-        
-        // Bônus de Ativos (Assets)
-        if (p.assets) {
-            // Veterano: +1 em Ferro
-            if (this.context.attribute === 'ferro' && p.assets.some(a => a.id === 'veterano')) attrVal += 1;
-            // Vidente: +1 em Sombra
-            if (this.context.attribute === 'sombra' && p.assets.some(a => a.id === 'vidente')) attrVal += 1;
-            // Corvo: +1 em Engenho
-            if (this.context.attribute === 'engenho' && p.assets.some(a => a.id === 'corvo')) attrVal += 1;
-        }
 
         let d6, d10_1, d10_2, total;
 

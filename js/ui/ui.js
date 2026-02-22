@@ -45,6 +45,7 @@ const ui = {
             `;
         });
         this.updateBondDisplay();
+        this.checkRestRecommendation(); // Verifica se precisa sugerir descanso
     },
 
     updateBondDisplay() {
@@ -147,7 +148,9 @@ const ui = {
             return `<div class="decision-card ${disabledClass}" onclick="game.handleDecision(${i})" ${tooltipAttr}>
                 <h4>${d.icon} ${d.title}</h4>
                 <p>${d.description}</p>
-                ${d.requiresRoll ? `<small>🎲 Teste de ${d.rollInfo.attribute}</small>` : ''}
+                ${d.requiresRoll ? 
+                    `<small>🎲 <strong>${gameState.getPlayer(d.rollInfo.playerNum).name}</strong> testa ${d.rollInfo.attribute}</small>` 
+                    : ''}
             </div>`;
         }).join('');
 
@@ -201,6 +204,11 @@ const ui = {
     
     showInventory() { 
         const container = document.getElementById('inventory-content');
+        
+        // Remove notificação visual ao abrir
+        const btnInv = document.getElementById('btn-inventory');
+        if (btnInv) btnInv.classList.remove('has-notification');
+
         const items = gameState.inventory;
         
         if (items.length === 0) {
@@ -290,7 +298,7 @@ const ui = {
     renderAssets(assetsData) {
         const grid = document.getElementById('asset-grid');
         grid.innerHTML = Object.values(assetsData).map(asset => `
-            <div class="asset-card" onclick="game.selectAsset('${asset.id}')">
+            <div class="asset-card" data-id="${asset.id}" onclick="game.selectAsset('${asset.id}')">
                 <div class="asset-header">
                     <span class="asset-icon">${asset.icon}</span>
                     <h4>${asset.name}</h4>
@@ -308,5 +316,53 @@ const ui = {
         if (gameState.player1 && gameState.player1.assets && gameState.player1.assets.length > 0) text += `✅ ${gameState.player1.name} pronto. `;
         if (gameState.player2 && gameState.player2.assets && gameState.player2.assets.length > 0) text += `✅ ${gameState.player2.name} pronto.`;
         status.textContent = text;
+
+        // Atualização Visual dos Cards (Highlight)
+        if (typeof game !== 'undefined') {
+            const myPlayerKey = `p${game.currentPlayer}`;
+            const mySelectedAssetId = game.selectedAssets[myPlayerKey];
+
+            document.querySelectorAll('.asset-card').forEach(card => {
+                if (card.dataset.id === mySelectedAssetId) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        }
+    },
+
+    // Nova Função: Verifica se deve sugerir descanso
+    checkRestRecommendation() {
+        const btnRest = document.getElementById('btn-rest');
+        if (!btnRest) return;
+
+        // 1. Verifica se tem suprimentos (Bloqueio)
+        if (gameState.sharedSupplies <= 0) {
+            btnRest.disabled = true;
+            btnRest.title = "Sem suprimentos para descansar.";
+            btnRest.classList.remove('recommended'); // Remove pulso se estiver bloqueado
+            return; // Interrompe aqui
+        }
+        
+        btnRest.disabled = false;
+
+        // Critério: Algum jogador com Saúde ou Espírito <= 2 E temos suprimentos
+        let needsRest = false;
+        [1, 2].forEach(num => {
+            const p = gameState.getPlayer(num);
+            if (p && (p.status.health <= 2 || p.status.spirit <= 2)) {
+                needsRest = true;
+            }
+        });
+
+        // Só recomenda se tiver suprimentos para pagar
+        if (needsRest) {
+            btnRest.classList.add('recommended');
+            btnRest.title = "Seu grupo está ferido. Recomendado descansar.";
+        } else {
+            btnRest.classList.remove('recommended');
+            btnRest.title = "";
+        }
     }
 };

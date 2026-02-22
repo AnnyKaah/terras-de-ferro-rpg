@@ -45,6 +45,7 @@ const game = {
         }
         this.mode = 'online';
         this.isHost = false;
+        this.currentPlayer = 2; // CORREÇÃO: Cliente assume explicitamente o papel de P2
         multiplayer.join(id);
         ui.showScreen('character-screen');
         this.renderCharacterCards();
@@ -165,20 +166,24 @@ const game = {
             let targetPlayer = this.currentPlayer;
             
             if (this.mode === 'offline') {
-                // Lógica Senior: Single Player com Companion
-                // Se o jogador escolhe um, o computador assume o outro automaticamente
-                this.selectedChars.p1 = charId;
-                gameState.initPlayer(1, charId);
-
-                // Define o Bot (o personagem que sobrou)
-                const otherCharId = Object.keys(CHARACTERS).find(id => id !== charId);
-                if (otherCharId) {
-                    this.selectedChars.p2 = otherCharId;
-                    gameState.initPlayer(2, otherCharId);
-                    // Marca visualmente que foi escolhido pelo sistema
-                    this.updateCharSelection();
-                    return;
-                }
+                // CORREÇÃO DE AUDITORIA: Slots Canônicos
+                // As cenas esperam que P1 seja Lyra (Combate/Sombra) e P2 seja Daren (Suporte/Coração).
+                // Em vez de colocar o char escolhido no slot 1, definimos quem o humano CONTROLA.
+                
+                const isLyra = charId === 'lyra';
+                
+                // Define quem o jogador controla
+                this.currentPlayer = isLyra ? 1 : 2;
+                
+                // Força os slots corretos para bater com scenes.js
+                this.selectedChars.p1 = 'lyra';
+                gameState.initPlayer(1, 'lyra');
+                
+                this.selectedChars.p2 = 'daren';
+                gameState.initPlayer(2, 'daren');
+                
+                this.updateCharSelection();
+                return;
             }
             
             this.processCharSelection(targetPlayer, charId);
@@ -224,12 +229,14 @@ const game = {
         
         if (this.selectedChars.p1) {
             const char = CHARACTERS[this.selectedChars.p1];
-            html += `<div class="selection-tag p1">👤 Jogador 1: ${char.icon} ${char.name}</div>`;
+            const label = (this.mode === 'offline' && this.currentPlayer === 1) ? 'Você' : (this.mode === 'offline' ? 'Bot' : 'Jogador 1');
+            html += `<div class="selection-tag p1">👤 ${label}: ${char.icon} ${char.name}</div>`;
         }
         
         if (this.selectedChars.p2) {
             const char = CHARACTERS[this.selectedChars.p2];
-            html += `<div class="selection-tag p2">👤 Jogador 2: ${char.icon} ${char.name}</div>`;
+            const label = (this.mode === 'offline' && this.currentPlayer === 2) ? 'Você' : (this.mode === 'offline' ? 'Bot' : 'Jogador 2');
+            html += `<div class="selection-tag p2">👤 ${label}: ${char.icon} ${char.name}</div>`;
         }
         
         status.innerHTML = html;
@@ -246,7 +253,7 @@ const game = {
         if (canConfirm) {
             // Apenas Host vê o botão habilitado para avançar fase
             if (this.isHost || this.mode === 'offline') {
-                confirmBtn.style.display = 'inline-block';
+                confirmBtn.style.display = 'block';
                 confirmBtn.textContent = "✅ Iniciar Juramento";
                 confirmBtn.disabled = false;
                 confirmBtn.onclick = () => this.confirmCharacters();
@@ -309,10 +316,13 @@ const game = {
         gameState.addAsset(playerNum, assetId);
 
         // Se for offline, o Bot escolhe um ativo aleatório ou pré-definido
-        if (this.mode === 'offline' && playerNum === 1 && !this.selectedAssets.p2) {
+        if (this.mode === 'offline' && playerNum === this.currentPlayer) {
+            const botPlayer = this.currentPlayer === 1 ? 2 : 1;
+            if (this.selectedAssets[`p${botPlayer}`]) return; // Já escolheu
+            
             const botAssets = Object.keys(ASSETS_DATA).filter(id => id !== assetId);
             const randomAsset = botAssets[Math.floor(Math.random() * botAssets.length)];
-            this.processAssetSelection(2, randomAsset);
+            this.processAssetSelection(botPlayer, randomAsset);
         }
         
         ui.updateAssetStatus();
@@ -459,7 +469,8 @@ const game = {
             const { playerNum, attribute, bonus } = decision.rollInfo;
             
             // Verifica se é o Bot (Modo Offline + Player 2)
-            const isBot = (this.mode === 'offline' && playerNum === 2);
+            // CORREÇÃO: Bot é qualquer um que não seja o currentPlayer
+            const isBot = (this.mode === 'offline' && playerNum !== this.currentPlayer);
             
             if (isBot) {
                 this.notify(`🤖 ${gameState.getPlayer(2).name} está agindo...`, 'info');
@@ -518,7 +529,7 @@ const game = {
 
             // Troca de turno automática no modo offline
             if (this.mode === 'offline') {
-                this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+                // Não trocamos o currentPlayer (quem controla), apenas notificamos
                 const p = gameState.getPlayer(this.currentPlayer);
                 if (p) {
                     this.notify(`Vez de ${p.name}`, 'info');
@@ -621,6 +632,7 @@ const game = {
             
             ui.showInventory(); // Atualiza modal
             ui.updateCharacterDisplay();
+            this.syncState(); // Sincroniza uso do item
         }
     },
 
@@ -662,6 +674,7 @@ const game = {
         
         ui.showInventory(); // Atualiza lista
         ui.updateCharacterDisplay(); // Atualiza stats na sidebar
+        this.syncState(); // Sincroniza equipamento
     },
 
     // ============================================
@@ -708,6 +721,7 @@ const game = {
 
         ui.closeModal('rest-modal');
         ui.updateCharacterDisplay();
+        this.syncState(); // Sincroniza descanso
     },
 
     // ============================================
@@ -935,7 +949,7 @@ const game = {
             if (!playerObj) return; // Segurança contra crash se player não for encontrado
 
             const pName = playerObj.name;
-            const isBot = (this.mode === 'offline' && bestPlayer === 2) || (this.mode === 'online' && bestPlayer !== this.currentPlayer);
+            const isBot = (this.mode === 'offline' && bestPlayer !== this.currentPlayer) || (this.mode === 'online' && bestPlayer !== this.currentPlayer);
             
             let message = '';
             if (isBot) {

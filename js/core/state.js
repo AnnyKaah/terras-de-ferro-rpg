@@ -54,7 +54,8 @@ const ASSETS_DATA = {
         type: 'Caminho',
         icon: '⚔️',
         description: 'Você sobreviveu a batalhas que mataram outros.',
-        ability: 'Ao rolar *Entrar em Combate* com Ferro, adicione +1.'
+        ability: 'Ao rolar *Entrar em Combate* com Ferro, adicione +1.',
+        bonus: { ferro: 1 }
     },
     vidente: {
         id: 'vidente',
@@ -62,7 +63,8 @@ const ASSETS_DATA = {
         type: 'Ritual',
         icon: '🔮',
         description: 'Os espíritos sussurram segredos para você.',
-        ability: 'Ao rolar *Investigar* ou *Reunir Informações* com Sombra, adicione +1.'
+        ability: 'Ao rolar *Investigar* ou *Reunir Informações* com Sombra, adicione +1.',
+        bonus: { sombra: 1 }
     },
     herbalista: {
         id: 'herbalista',
@@ -78,7 +80,8 @@ const ASSETS_DATA = {
         type: 'Companheiro',
         icon: '🦅',
         description: 'Um espião alado que vê o que você não vê.',
-        ability: 'Ao rolar *Engenho* para perceber perigo, adicione +1 e ganhe +1 Impulso.'
+        ability: 'Ao rolar *Engenho* para perceber perigo, adicione +1 e ganhe +1 Impulso.',
+        bonus: { engenho: 1 }
     }
 };
 
@@ -215,6 +218,12 @@ class GameState {
         this.inventory.push(newItem);
         const p = this.getPlayer(owner);
         this.addLog(`🎒 ${p.name} obteve: ${newItem.name}`, 'info');
+        
+        // Notificação Visual na UI
+        const btnInv = document.getElementById('btn-inventory');
+        if (btnInv) {
+            btnInv.classList.add('has-notification');
+        }
         return true;
     }
 
@@ -270,11 +279,26 @@ class GameState {
         if (!player) return 0;
 
         let baseStat = player.stats[statName] || 0;
+
+        // Bônus Passivo de Personagem (Lyra: Arqueira)
+        if (player.charId === 'lyra' && statName === 'fogo') {
+            baseStat += 1;
+        }
+
         // Verifica itens equipados (simplificado: procura no inventário itens com bonusStats)
         // Para uma implementação completa de 'equipado', precisaríamos da flag 'equipped' nos itens
         this.inventory.filter(i => i.owner === playerNum && i.equipped && i.bonusStats && i.bonusStats[statName])
             .forEach(i => baseStat += i.bonusStats[statName]);
             
+        // Verifica bônus passivos de Ativos (Assets)
+        if (player.assets) {
+            player.assets.forEach(asset => {
+                if (asset.bonus && asset.bonus[statName]) {
+                    baseStat += asset.bonus[statName];
+                }
+            });
+        }
+
         return baseStat;
     }
 
